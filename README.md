@@ -18,6 +18,10 @@ A comprehensive healthcare mobile application built with React Native and Expo. 
 - Ionicons
 - React Native Calendars
 
+## Figma
+
+https://www.figma.com/files/team/1479003637506847838/project/347669296/Team-project?fuid=1115812453249520695
+
 ## Screenshots
 
 [Screenshots to be added]
