@@ -1,59 +1,135 @@
 import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Link, Tabs, useRouter } from 'expo-router';
+import { Pressable, StyleSheet, View, Dimensions, Platform } from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
+  name: string;
   color: string;
+  focused: boolean;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  const iconName = props.focused
+    ? props.name
+    : `${props.name}-outline`;
+
+  return (
+    <Ionicons
+      name={iconName as any}
+      size={24}
+      style={{ marginBottom: Platform.OS === 'android' ? 0 : -3 }}
+      color={props.color}
+    />
+  );
 }
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
+
+  // Header right profile icon component
+  const ProfileIcon = () => {
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.profileIconContainer,
+          { opacity: pressed ? 0.7 : 1 },
+        ]}
+        onPress={() => router.push('/(setting)/profile')}
+      >
+        <Ionicons
+          name="person-circle-outline"
+          size={28}
+          color={Colors[colorScheme ?? 'light'].text}
+        />
+      </Pressable>
+    );
+  };
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
-      }}>
+        headerRight: () => <ProfileIcon />,
+        tabBarShowLabel: true,
+        tabBarStyle: {
+          backgroundColor: Colors[colorScheme ?? 'light'].card,
+          borderTopColor: Colors[colorScheme ?? 'light'].border,
+          // Android-specific styling
+          ...(Platform.OS === 'android' && {
+            height: 65,
+            paddingBottom: 20,
+            paddingTop: 0,
+          })
+        },
+        // Android-specific tab bar label style
+        tabBarLabelStyle: Platform.OS === 'android' ? {
+          paddingBottom: 8,
+          fontSize: 12,
+        } : undefined,
+        // Android-specific tab bar icon style
+        tabBarIconStyle: Platform.OS === 'android' ? {
+          marginTop: 2,
+        } : undefined,
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="info-circle"
-                    size={25}
-                    color={Colors[colorScheme ?? 'light'].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
+          title: 'Home',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="home" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="calendar"
         options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: 'Calendar',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="calendar" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="button"
+        options={{
+          title: 'Add',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="finger-print" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="medication"
+        options={{
+          title: 'Medical',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="medical" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="four"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="person" color={color} focused={focused} />
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  profileIconContainer: {
+    marginRight: 15,
+    borderRadius: 20,
+    padding: 3,
+  },
+});

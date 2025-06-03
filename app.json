@@ -33,6 +33,16 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "packagerOpts": {
+      "sourceExts": [
+        "js",
+        "jsx",
+        "ts",
+        "tsx",
+        "json"
+      ],
+      "config": "metro.config.js"
     }
   }
 }
