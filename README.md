@@ -25,7 +25,7 @@ A comprehensive healthcare mobile application built with React Native and Expo. 
 ## Installation
 
 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/MediMate_React.git
+git clone https://github.com/Am0605/MediMate_React.git
 
 2. Install dependencies
 cd MediMate_React npm install
