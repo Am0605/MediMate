@@ -150,17 +150,20 @@ export default function Calendar() {
     // Reset form fields
     setEditingAppointment(null);
     setFormTitle('');
-    setFormDate(new Date());
-    setFormTime(new Date());
-    setFormLocation('');
-    setFormDoctorName('');
-    setFormDoctorSpecialty('');
-    setFormNotes('');
     
     // Use selected date for new appointment
     const [year, month, day] = selectedDate.split('-').map(n => parseInt(n, 10));
     const selectedDateObj = new Date(year, month - 1, day);
     setFormDate(selectedDateObj);
+    
+    // Set current time for new appointment
+    const now = new Date();
+    setFormTime(now);
+    
+    setFormLocation('');
+    setFormDoctorName('');
+    setFormDoctorSpecialty('');
+    setFormNotes('');
     
     setModalVisible(true);
   };
@@ -198,7 +201,8 @@ export default function Calendar() {
       return;
     }
     
-    const formattedDate = formDate.toISOString().split('T')[0];
+    // Format date in YYYY-MM-DD format
+    const formattedDate = `${formDate.getFullYear()}-${String(formDate.getMonth() + 1).padStart(2, '0')}-${String(formDate.getDate()).padStart(2, '0')}`;
     const formattedTime = `${String(formTime.getHours()).padStart(2, '0')}:${String(formTime.getMinutes()).padStart(2, '0')}`;
     
     if (editingAppointment) {
@@ -305,19 +309,16 @@ export default function Calendar() {
     textSectionTitleColor: Colors[colorScheme].text,
     selectedDayBackgroundColor: Colors[colorScheme].tint,
     selectedDayTextColor: '#ffffff',
-    todayTextColor: Colors[colorScheme].tint,
-    dayTextColor: Colors[colorScheme].text,
+    todayTextColor: '#FF3B30',
+    dayTextColor: isDark ? '#FF0000' : '#2C3E50',
     textDisabledColor: isDark ? '#555555' : '#d9e1e8',
     dotColor: Colors[colorScheme].notification,
     selectedDotColor: '#ffffff',
     arrowColor: Colors[colorScheme].tint,
-    monthTextColor: Colors[colorScheme].text,
+    monthTextColor: isDark ? '#E0E0E0' : '#2C3E50',
     indicatorColor: Colors[colorScheme].tint,
-    textDayFontWeight: '300',
-    textMonthFontWeight: 'bold',
-    textDayHeaderFontWeight: '300',
     textDayFontSize: 16,
-    textMonthFontSize: 16,
+    textMonthFontSize: 18,
     textDayHeaderFontSize: 14
   };
   
@@ -328,7 +329,7 @@ export default function Calendar() {
         <RNCalendar
           markedDates={markedDates}
           onDayPress={day => setSelectedDate(day.dateString)}
-          theme={calendarTheme}
+          theme={calendarTheme} 
           enableSwipeMonths
         />
       </View>
@@ -380,17 +381,28 @@ export default function Calendar() {
                   {appointment.time.substring(0, 5)}
                 </Text>
               </View>
+
               <View style={styles.appointmentDetails}>
                 <Text style={[styles.appointmentTitle, { color: Colors[colorScheme].text }]}>
                   {appointment.title}
                 </Text>
-                <Text style={[styles.appointmentLocation, { color: isDark ? '#A0B4C5' : '#757575' }]}>
-                  <Ionicons name="location-outline" size={14} /> {appointment.location}
-                </Text>
-                <Text style={[styles.appointmentDoctor, { color: isDark ? '#A0B4C5' : '#757575' }]}>
-                  <Ionicons name="person-outline" size={14} /> {appointment.doctorName} • {appointment.doctorSpecialty}
-                </Text>
-              </View>
+                
+                  {/* Location */}
+                  <View style={styles.iconTextRow}>
+                    <Ionicons name="location-outline" size={14} color={isDark ? '#A0B4C5' : '#757575'} />
+                    <Text style={[styles.appointmentLocation, { color: isDark ? '#A0B4C5' : '#757575' }]}>
+                      {appointment.location}
+                    </Text>
+                  </View>
+
+                  {/* Doctor */}
+                  <View style={styles.iconTextRow}>
+                    <Ionicons name="person-outline" size={14} color={isDark ? '#A0B4C5' : '#757575'} />
+                    <Text style={[styles.appointmentDoctor, { color: isDark ? '#A0B4C5' : '#757575' }]}>
+                      {appointment.doctorName} • {appointment.doctorSpecialty}
+                    </Text>
+                  </View>
+                </View>
             </TouchableOpacity>
           ))}
           <View style={{ height: 100 }} />
@@ -596,7 +608,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 10,
     marginVertical: 10,
-    marginHorizontal: 15,
+    marginHorizontal: 0,
+    width: screenWidth - 32,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -674,15 +687,19 @@ const styles = StyleSheet.create({
   appointmentCard: {
     flexDirection: 'row',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
     marginBottom: 10,
-    elevation: 3,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
     shadowOpacity: 0.1,
     shadowRadius: 2.5,
+    marginLeft: -15,
+    marginRight: -15,
   },
   appointmentTimeContainer: {
     width: 80,
@@ -697,21 +714,29 @@ const styles = StyleSheet.create({
   appointmentDetails: {
     flex: 1,
     padding: 15,
-    paddingLeft: 0,
+    paddingLeft: 10,
     borderLeftWidth: 1,
     borderLeftColor: '#f0f0f0',
   },
   appointmentTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 10,
   },
   appointmentLocation: {
     fontSize: 14,
-    marginBottom: 4,
+    marginLeft: 8,
+    marginRight: 8,
   },
   appointmentDoctor: {
     fontSize: 14,
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  iconTextRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
   modalContainer: {
     flex: 1,
