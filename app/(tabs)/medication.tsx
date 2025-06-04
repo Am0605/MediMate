@@ -1,14 +1,49 @@
-import { StyleSheet } from 'react-native';
-
-import EditScreenInfo from '@/components/EditScreenInfo';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { Text, View } from '@/components/Themed';
+import { useColorScheme } from '@/components/useColorScheme';
+import Colors from '@/constants/Colors';
 
-export default function TabThreeScreen() {
+// Import medication components
+import MedicationHeader from '@/components/medication/MedicationHeader';
+import MedicationStats from '@/components/medication/MedicationStats';
+import MedicationList from '@/components/medication/MedicationList';
+import MedicationReminders from '@/components/medication/MedicationReminders';
+import AddMedicationButton from '@/components/medication/AddMedicationButton';
+
+// Mock data import (replace with actual data service later)
+import { useMedicationData } from '@/hooks/useMedicationData';
+
+export default function MedicationScreen() {
+  const colorScheme = useColorScheme();
+  const [refreshing, setRefreshing] = useState(false);
+  const { medications, reminders, adherenceRate, fetchMedications } = useMedicationData();
+
+  // Pull to refresh functionality
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchMedications().finally(() => {
+      setRefreshing(false);
+    });
+  }, [fetchMedications]);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Tab Three</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/(tabs)/three.tsx" />
+
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        <MedicationHeader />
+        <MedicationStats adherenceRate={adherenceRate} />
+        <MedicationReminders reminders={reminders} />
+        <MedicationList medications={medications} />
+      </ScrollView>
+      
+      <AddMedicationButton />
     </View>
   );
 }
@@ -16,16 +51,11 @@ export default function TabThreeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  scrollContainer: {
+    flex: 1,
   },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
+  contentContainer: {
+    paddingBottom: 80, 
   },
 });

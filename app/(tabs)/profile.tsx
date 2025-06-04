@@ -4,31 +4,30 @@ import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 
-// Import home components
-import HomeHeader from '@/components/home/HomeHeader';
-import QuickAccessSection from '@/components/home/QuickAccessSection';
-import HealthNewsSection from '@/components/home/HealthNewsSection';
-import DailyTipCard from '@/components/home/DailyTipCard';
+// Import health-focused profile components
+import HealthHeader from '@/components/profile/HealthHeader';
+import HealthPersonalInfo from '@/components/profile/HealthPersonalInfo';
+import HealthOverview from '@/components/profile/HealthOverview';
+import HealthEntries from '@/components/profile/HealthEntries';
 
-// Data hook
-import { useHomeData } from '@/hooks/useHomeData';
+// Mock data hook
+import { useHealthProfileData } from '@/hooks/useHealthProfileData';
 
-export default function HomeScreen() {
+export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const [refreshing, setRefreshing] = useState(false);
-  const { healthNews, userInfo, loading, fetchHomeData } = useHomeData();
+  const { healthProfile, healthStats, healthEntries, fetchHealthProfile } = useHealthProfileData();
 
   // Pull to refresh functionality
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchHomeData().finally(() => {
+    fetchHealthProfile().finally(() => {
       setRefreshing(false);
     });
-  }, [fetchHomeData]);
+  }, [fetchHealthProfile]);
 
   return (
     <View style={styles.container}>
-
       <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.contentContainer}
@@ -36,12 +35,12 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <HomeHeader userInfo={userInfo} />
+        <HealthHeader />
         
-        {/* Quick Access Section */}
-        <QuickAccessSection />
-        <HealthNewsSection healthNews={healthNews} loading={loading} />
-        <DailyTipCard />
+        {/* Personal Info Section */}
+        <HealthPersonalInfo healthProfile={healthProfile} />
+        <HealthOverview healthStats={healthStats} />
+        <HealthEntries entries={healthEntries} />
         
         {/* Bottom padding */}
         <View style={{ height: 100 }} />

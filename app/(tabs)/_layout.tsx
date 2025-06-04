@@ -2,6 +2,7 @@ import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, Tabs, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View, Dimensions, Platform } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -26,19 +27,48 @@ function TabBarIcon(props: {
   );
 }
 
+// Custom tab bar button with haptic feedback
+function TabBarButton(props: any) {
+  const { onPress, ...otherProps } = props;
+  
+  // Handle press with haptic feedback
+  const handlePress = () => {
+    if (Platform.OS === 'android') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onPress && onPress();
+  };
+  
+  return (
+    <Pressable 
+      {...otherProps} 
+      onPress={handlePress}
+      android_ripple={null} // Disable ripple effect on Android
+    />
+  );
+}
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
 
-  // Header right profile icon component
+  // Header right profile icon component with haptic feedback
   const ProfileIcon = () => {
+    const handleProfilePress = () => {
+      if (Platform.OS === 'android') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      router.push('/(setting)/profile');
+    };
+
     return (
       <Pressable
         style={({ pressed }) => [
           styles.profileIconContainer,
-          { opacity: pressed ? 0.7 : 1 },
+          Platform.OS === 'ios' && { opacity: pressed ? 0.7 : 1 },
         ]}
-        onPress={() => router.push('/(setting)/profile')}
+        onPress={handleProfilePress}
+        android_ripple={null} 
       >
         <Ionicons
           name="person-circle-outline"
@@ -75,6 +105,8 @@ export default function TabLayout() {
         tabBarIconStyle: Platform.OS === 'android' ? {
           marginTop: 2,
         } : undefined,
+        // Use the custom tab bar button with haptic feedback
+        tabBarButton: (props) => <TabBarButton {...props} />,
       }}
     >
       <Tabs.Screen
@@ -114,7 +146,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="four"
+        name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
