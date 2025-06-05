@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, Tabs, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View, Dimensions, Platform } from 'react-native';
+import { Pressable, StyleSheet, View, Dimensions, Platform, Image, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import Colors from '@/constants/Colors';
@@ -90,43 +90,6 @@ export default function TabLayout() {
   const router = useRouter();
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  const ProfileIcon = () => {
-    const handleProfilePress = () => {
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } else {
-        Haptics.selectionAsync();
-      }
-      router.push('/(setting)/profile');
-    };
-
-    return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.profileIconContainer,
-          {
-            transform: [{ scale: pressed ? 0.9 : 1 }],
-            opacity: pressed ? 0.7 : 1,
-          }
-        ]}
-        onPress={handleProfilePress}
-        android_ripple={{ 
-          color: 'rgba(0,0,0,0.1)', 
-          borderless: true,
-          radius: 25
-        }}
-      >
-        <View style={[styles.profileIconBackground, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
-          <Ionicons
-            name="person-circle-outline"
-            size={28}
-            color={Colors[colorScheme ?? 'light'].text}
-          />
-        </View>
-      </Pressable>
-    );
-  };
-
   const handleFABPress = () => {
     setIsModalVisible(true);
   };
@@ -142,7 +105,6 @@ export default function TabLayout() {
           tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
           tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
           headerShown: useClientOnlyValue(false, true),
-          headerRight: () => <ProfileIcon />,
           tabBarShowLabel: false,
           tabBarStyle: {
             backgroundColor: Colors[colorScheme ?? 'light'].card,
@@ -211,7 +173,16 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'Home',
-            headerTitle: 'MediMate',
+            headerTitle: () => (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Image
+                  source={require('@/assets/images/logo.png')}
+                  style={{ width: 28, height: 28, marginRight: 8 }}
+                  resizeMode="contain"
+                />
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#007AFF' }}>MediMate</Text>
+              </View>
+            ),
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="home" color={color} focused={focused} />
             ),
@@ -269,26 +240,6 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  profileIconContainer: {
-    marginRight: 15,
-    borderRadius: 22,
-    padding: 2,
-  },
-  profileIconBackground: {
-    borderRadius: 20,
-    padding: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
   },
   tabIconContainer: {
     alignItems: 'center',
