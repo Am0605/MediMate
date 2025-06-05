@@ -4,6 +4,7 @@ const tintColorDark = '#64B5F6';  // Lighter blue for dark mode
 export default {
   light: {
     text: '#263238',           // Dark blue-gray for text
+    textSecondary: '#546E7A',  // Medium blue-gray for secondary text
     background: '#FFFFFF',     // White background
     tint: tintColorLight,      // Primary blue accent
     tabIconDefault: '#90A4AE', // Muted blue-gray for inactive tabs
@@ -20,6 +21,7 @@ export default {
   },
   dark: {
     text: '#ECEFF1',           // Off-white text
+    textSecondary: '#B0BEC5',  // Light blue-gray for secondary text
     background: '#0A1929',     // Dark blue background
     tint: tintColorDark,       // Light blue accent
     tabIconDefault: '#78909C', // Muted blue-gray for inactive tabs
