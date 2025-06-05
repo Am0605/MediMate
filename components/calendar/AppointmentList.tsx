@@ -31,7 +31,7 @@ export default function AppointmentsList({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].card }]}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
@@ -134,18 +134,8 @@ function AppointmentCard({ appointment, onPress }: { appointment: Appointment; o
 
 const styles = StyleSheet.create({
   container: {
-    margin: 16,
-    borderRadius: 16,
+    flex: 1,
     padding: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 3,
-    minHeight: 200,
   },
   headerRow: {
     flexDirection: 'row',
@@ -205,7 +195,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   appointmentsList: {
-    maxHeight: 300,
+    flex: 1,
   },
   appointmentCard: {
     flexDirection: 'row',
