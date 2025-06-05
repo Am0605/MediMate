@@ -1,10 +1,29 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import * as FileSystem from 'expo-file-system'; // Add this import
 
 interface SimplificationResult {
   simplifiedText: string;
   healthTips: string[];
   keyFindings?: string[];
   diagnosis?: string;
+}
+
+interface SymptomData {
+  symptoms: string[];
+  customSymptoms: string;
+  duration: string;
+  severity: 'mild' | 'moderate' | 'severe';
+  additionalInfo: string;
+  hasVisibleSymptoms: boolean;
+  imageUri?: string;
+}
+
+interface SymptomAnalysis {
+  assessment: string;
+  possibleConditions: string[];
+  urgencyLevel: 'low' | 'medium' | 'high' | 'emergency';
+  recommendations: string[];
+  disclaimerText: string;
 }
 
 class GeminiService {
@@ -102,6 +121,86 @@ class GeminiService {
 
     } catch (error) {
       console.error('Gemini API call error:', error);
+      throw error;
+    }
+  }
+
+  // Method for generating content with multimodal input (text + image)
+  private async generateMultimodalContent(prompt: string, base64Image: string): Promise<string> {
+    try {
+      const response = await fetch(`${this.BASE_URL}/gemini-2.0-flash:generateContent?key=${this.API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt
+                },
+                {
+                  inlineData: {
+                    mimeType: "image/jpeg",
+                    data: base64Image
+                  }
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_ONLY_HIGH"
+            }
+          ]
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.candidates || data.candidates.length === 0) {
+        throw new Error('No response generated');
+      }
+
+      const candidate = data.candidates[0];
+      
+      if (candidate.finishReason === 'SAFETY') {
+        throw new Error('Content was blocked by safety filters');
+      }
+
+      if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+        throw new Error('Invalid response format');
+      }
+
+      return candidate.content.parts[0].text;
+
+    } catch (error) {
+      console.error('Gemini multimodal API call error:', error);
       throw error;
     }
   }
@@ -322,6 +421,243 @@ Return ONLY the tips, one per line, without numbers or bullet points:
     }
 
     throw lastError!;
+  }
+
+  async analyzeSymptoms(symptomData: SymptomData): Promise<SymptomAnalysis> {
+    try {
+      let prompt = this.createSymptomAnalysisPrompt(symptomData);
+      let response: string;
+
+      // If there's an image, include it in the analysis
+      if (symptomData.hasVisibleSymptoms && symptomData.imageUri) {
+        try {
+          const base64Image = await FileSystem.readAsStringAsync(symptomData.imageUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          // Enhanced prompt for image analysis
+          prompt = `
+${prompt}
+
+ADDITIONAL INSTRUCTION: Analyze the provided image showing visible symptoms. Include observations from the image in your assessment and recommendations.
+
+Image Analysis: Describe what you observe in the image that might be related to the reported symptoms. Focus on visible skin conditions, rashes, swelling, discoloration, or other notable physical findings.
+`;
+
+          response = await this.generateMultimodalContent(prompt, base64Image);
+        } catch (imageError) {
+          console.warn('Image analysis failed, proceeding with text-only analysis:', imageError);
+          response = await this.generateContent(prompt);
+        }
+      } else {
+        response = await this.generateContent(prompt);
+      }
+      
+      if (!response || response.trim().length === 0) {
+        throw new Error('Failed to analyze symptoms');
+      }
+
+      const result = this.parseSymptomAnalysisResponse(response);
+      return result;
+
+    } catch (error) {
+      console.error('Symptom analysis error:', error);
+      throw new Error(
+        error instanceof Error 
+          ? `Symptom analysis failed: ${error.message}`
+          : 'Failed to analyze symptoms'
+      );
+    }
+  }
+
+  private createSymptomAnalysisPrompt(symptomData: SymptomData): string {
+    const selectedSymptoms = symptomData.symptoms.map(s => s.replace('_', ' ')).join(', ');
+    
+    return `
+You are a medical AI assistant providing preliminary health assessments. Analyze the following symptoms and provide guidance.
+
+IMPORTANT: You are NOT providing a medical diagnosis. This is for informational purposes only.
+
+Patient Information:
+- Selected Symptoms: ${selectedSymptoms}
+- Custom Symptoms: ${symptomData.customSymptoms || 'None'}
+- Duration: ${symptomData.duration.replace('_', ' ')}
+- Severity: ${symptomData.severity}
+- Additional Information: ${symptomData.additionalInfo || 'None'}
+- Has Visible Symptoms: ${symptomData.hasVisibleSymptoms ? 'Yes' : 'No'}
+
+Instructions:
+1. Provide a clear, empathetic assessment of the symptoms
+2. List possible conditions that might cause these symptoms (3-5 most likely)
+3. Determine urgency level: low, medium, high, or emergency
+4. Provide 5-7 specific recommendations for next steps
+5. Include appropriate medical disclaimers
+
+Use the following urgency guidelines:
+- EMERGENCY: Severe chest pain, difficulty breathing, severe bleeding, loss of consciousness, severe allergic reactions
+- HIGH: High fever (>102°F), severe pain, persistent vomiting, signs of infection
+- MEDIUM: Moderate symptoms lasting several days, concerning but not immediate
+- LOW: Minor symptoms, common conditions, early stages
+
+Please structure your response EXACTLY as follows:
+
+## SYMPTOM ANALYSIS
+
+### Assessment
+[Provide a clear, empathetic assessment of the described symptoms in 2-3 sentences]
+
+### Urgency Level
+[State: emergency, high, medium, or low]
+
+### Possible Conditions
+[List 3-5 possible conditions, each on a new line with a bullet point]
+- Condition 1
+- Condition 2
+- Condition 3
+- Condition 4
+- Condition 5
+
+### Recommendations
+[Provide 5-7 specific recommendations]
+- Recommendation 1
+- Recommendation 2
+- Recommendation 3
+- Recommendation 4
+- Recommendation 5
+- Recommendation 6
+- Recommendation 7
+
+### Disclaimer
+This assessment is for informational purposes only and should not replace professional medical advice. If you are experiencing severe symptoms or are concerned about your health, please seek immediate medical attention or contact emergency services. Always consult with a qualified healthcare provider for proper diagnosis and treatment.
+
+Please provide the complete analysis following the exact structure above:`;
+  }
+
+  private parseSymptomAnalysisResponse(response: string): SymptomAnalysis {
+    try {
+      // Extract assessment
+      const assessmentMatch = response.match(/### Assessment\s*([\s\S]*?)(?=\n###|$)/i);
+      const assessment = assessmentMatch ? assessmentMatch[1].trim() : 'Unable to analyze symptoms at this time.';
+
+      // Extract urgency level
+      const urgencyMatch = response.match(/### Urgency Level\s*([\s\S]*?)(?=\n###|$)/i);
+      let urgencyLevel: 'low' | 'medium' | 'high' | 'emergency' = 'medium';
+      
+      if (urgencyMatch) {
+        const urgencyText = urgencyMatch[1].trim().toLowerCase();
+        if (urgencyText.includes('emergency')) urgencyLevel = 'emergency';
+        else if (urgencyText.includes('high')) urgencyLevel = 'high';
+        else if (urgencyText.includes('low')) urgencyLevel = 'low';
+        else urgencyLevel = 'medium';
+      }
+
+      // Extract possible conditions
+      const conditionsMatch = response.match(/### Possible Conditions\s*([\s\S]*?)(?=\n###|$)/i);
+      let possibleConditions: string[] = [];
+      
+      if (conditionsMatch) {
+        possibleConditions = conditionsMatch[1]
+          .split('\n')
+          .map(condition => condition.replace(/^[-•*\s]+/, '').trim())
+          .filter(condition => condition.length > 0 && !condition.startsWith('###'))
+          .slice(0, 5);
+      }
+
+      // Extract recommendations
+      const recommendationsMatch = response.match(/### Recommendations\s*([\s\S]*?)(?=\n###|$)/i);
+      let recommendations: string[] = [];
+      
+      if (recommendationsMatch) {
+        recommendations = recommendationsMatch[1]
+          .split('\n')
+          .map(rec => rec.replace(/^[-•*\s]+/, '').trim())
+          .filter(rec => rec.length > 0 && !rec.startsWith('###'))
+          .slice(0, 7);
+      }
+
+      // Extract disclaimer
+      const disclaimerMatch = response.match(/### Disclaimer\s*([\s\S]*?)(?=\n###|$)/i);
+      const disclaimerText = disclaimerMatch ? disclaimerMatch[1].trim() : 
+        'This assessment is for informational purposes only and should not replace professional medical advice. Please consult with a qualified healthcare provider for proper diagnosis and treatment.';
+
+      // Fallback values if parsing fails
+      if (possibleConditions.length === 0) {
+        possibleConditions = [
+          'Multiple conditions could cause these symptoms',
+          'Professional evaluation needed for accurate diagnosis'
+        ];
+      }
+
+      if (recommendations.length === 0) {
+        recommendations = [
+          'Monitor your symptoms closely',
+          'Rest and stay hydrated',
+          'Consider over-the-counter treatments if appropriate',
+          'Consult a healthcare provider if symptoms worsen',
+          'Seek immediate medical attention if you experience severe symptoms'
+        ];
+      }
+
+      return {
+        assessment,
+        possibleConditions,
+        urgencyLevel,
+        recommendations,
+        disclaimerText
+      };
+
+    } catch (error) {
+      console.error('Error parsing symptom analysis response:', error);
+      
+      // Return safe fallback response
+      return {
+        assessment: 'Based on your symptoms, it would be best to consult with a healthcare provider for proper evaluation.',
+        possibleConditions: [
+          'Multiple conditions could cause these symptoms',
+          'Professional medical evaluation recommended'
+        ],
+        urgencyLevel: 'medium',
+        recommendations: [
+          'Monitor your symptoms closely',
+          'Rest and stay hydrated',
+          'Keep track of symptom changes',
+          'Consult a healthcare provider',
+          'Seek immediate medical attention if symptoms worsen'
+        ],
+        disclaimerText: 'This assessment is for informational purposes only and should not replace professional medical advice. Please consult with a qualified healthcare provider for proper diagnosis and treatment.'
+      };
+    }
+  }
+
+  // Simplified image analysis method for visible symptoms
+  async analyzeSymptomImage(imageUri: string, symptoms: string[]): Promise<string> {
+    try {
+      // Convert image to base64
+      const base64Image = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const prompt = `
+Analyze this medical image showing visible symptoms. The patient has reported: ${symptoms.join(', ')}.
+
+Please describe what you observe in the image that might be related to these symptoms. Focus on:
+1. Visible skin conditions, rashes, or discoloration
+2. Swelling or inflammation
+3. Any other notable physical findings
+4. How these visual findings relate to the reported symptoms
+
+Provide a brief, clinical description suitable for sharing with a healthcare provider.
+
+IMPORTANT: Remind the user that image analysis cannot replace professional medical examination.
+`;
+
+      const response = await this.generateMultimodalContent(prompt, base64Image);
+      return response;
+
+    } catch (error) {
+      console.error('Image analysis error:', error);
+      return 'Image analysis is currently unavailable. Please describe your visible symptoms in text or consult with a healthcare provider.';
+    }
   }
 }
 
