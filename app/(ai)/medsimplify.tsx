@@ -127,8 +127,8 @@ export default function MedSimplifyScreen() {
           <DocumentUploader onDocumentSelected={handleDocumentSelected} />
         )}
 
-        {isProcessing && (
-          <LoadingIndicator step={currentStep} />
+        {isProcessing && ['extracting', 'simplifying'].includes(currentStep) && (
+          <LoadingIndicator step={currentStep as 'extracting' | 'simplifying'} />
         )}
 
         {processedDocument && currentStep === 'complete' && (
