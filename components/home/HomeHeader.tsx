@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -15,10 +15,14 @@ type HomeHeaderProps = {
 export default function HomeHeader({ userInfo }: HomeHeaderProps) {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  
-  const handleNotificationPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/(tabs)/notifications');
+
+  const handleProfilePress = () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      Haptics.selectionAsync();
+    }
+    router.push('/(setting)/profile');
   };
 
   const getGreeting = () => {
@@ -60,19 +64,31 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
         </Text>
       </View>
 
-      <TouchableOpacity 
-        style={styles.notificationIcon}
-        onPress={handleNotificationPress}
+      <Pressable
+        style={({ pressed }) => [
+          styles.profileIconContainer,
+          {
+            transform: [{ scale: pressed ? 0.9 : 1 }],
+            opacity: pressed ? 0.7 : 1,
+          }
+        ]}
+        onPress={handleProfilePress}
+        android_ripple={{ 
+          color: 'rgba(0,0,0,0.1)', 
+          borderless: true,
+          radius: 25
+        }}
       >
-        <Ionicons name="notifications" size={24} color={Colors[colorScheme].text} />
-        {userInfo.unreadNotifications > 0 && (
-          <View style={styles.notificationBadge}>
-            <Text style={styles.notificationCount}>
-              {userInfo.unreadNotifications > 99 ? '99+' : userInfo.unreadNotifications}
-            </Text>
+        <View style={[styles.profileCard, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={[styles.profileIconBackground, { backgroundColor: Colors[colorScheme].background }]}>
+            <Ionicons
+              name="person-circle-outline"
+              size={35}
+              color={Colors[colorScheme].text}
+            />
           </View>
-        )}
-      </TouchableOpacity>
+        </View>
+      </Pressable>
     </View>
   );
 }
@@ -97,28 +113,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 4,
   },
-  notificationIcon: {
-    position: 'relative',
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+  profileIconContainer: {
+    marginLeft: 15,
+    padding: 5,
   },
-  notificationBadge: {
-    position: 'absolute',
-    right: 5,
-    top: 5,
-    backgroundColor: '#FF3B30',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
+  profileCard: {
+    borderRadius: 25,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  notificationCount: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: 'bold',
+  profileIconBackground: {
+    borderRadius: 20,
+    padding: 1.5,
   },
 });

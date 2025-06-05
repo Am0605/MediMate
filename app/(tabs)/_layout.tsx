@@ -85,6 +85,46 @@ function FABTabButton({ onPress }: { onPress: () => void }) {
   );
 }
 
+const ProfileIcon = () => {
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+
+  const handleProfilePress = () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      Haptics.selectionAsync();
+    }
+    router.push('/(setting)/profile');
+  };
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.profileIconContainer,
+        {
+          transform: [{ scale: pressed ? 0.9 : 1 }],
+          opacity: pressed ? 0.7 : 1,
+        }
+      ]}
+      onPress={handleProfilePress}
+      android_ripple={{ 
+        color: 'rgba(0,0,0,0.1)', 
+        borderless: true,
+        radius: 25
+      }}
+    >
+      <View style={[styles.profileIconBackground, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
+        <Ionicons
+          name="person-circle-outline"
+          size={28}
+          color={Colors[colorScheme ?? 'light'].text}
+        />
+      </View>
+    </Pressable>
+  );
+};
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
@@ -149,18 +189,9 @@ export default function TabLayout() {
           },
           tabBarButton: (props) => <TabBarButton {...props} />,
           headerStyle: {
-            backgroundColor: Colors[colorScheme ?? 'light'].card,
-            ...Platform.select({
-              ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-              },
-              android: {
-                elevation: 4,
-              },
-            }),
+            backgroundColor: 'transparent',
+            elevation: 0,
+            shadowOpacity: 0,
           },
           headerTitleStyle: {
             color: Colors[colorScheme ?? 'light'].text,
@@ -180,7 +211,7 @@ export default function TabLayout() {
                   style={{ width: 28, height: 28, marginRight: 8 }}
                   resizeMode="contain"
                 />
-                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#007AFF' }}>MediMate</Text>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: Colors[colorScheme ?? 'light'].tint }}>MediMate</Text>
               </View>
             ),
             tabBarIcon: ({ color, focused }) => (
@@ -191,8 +222,18 @@ export default function TabLayout() {
         <Tabs.Screen
           name="calendar"
           options={{
-            title: 'Calendar',
-            headerTitle: 'Schedule',
+            title: '',
+            headerLeft: () => (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16 }}>
+                <Image
+                  source={require('@/assets/images/logo.png')}
+                  style={{ width: 28, height: 28, marginRight: 8 }}
+                  resizeMode="contain"
+                />
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: Colors[colorScheme ?? 'light'].tint }}>MediMate</Text>
+              </View>
+            ),
+            headerRight: () => <ProfileIcon />,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="calendar" color={color} focused={focused} />
             ),
@@ -213,18 +254,39 @@ export default function TabLayout() {
         <Tabs.Screen
           name="medication"
           options={{
-            title: 'Medical',
-            headerTitle: 'Medications',
+            title: '',
+            headerLeft: () => (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16 }}>
+                <Image
+                  source={require('@/assets/images/logo.png')}
+                  style={{ width: 28, height: 28, marginRight: 8 }}
+                  resizeMode="contain"
+                />
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: Colors[colorScheme ?? 'light'].tint }}>MediMate</Text>
+              </View>
+            ),
+            headerRight: () => <ProfileIcon />,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="medical" color={color} focused={focused} />
             ),
           }}
         />
+
         <Tabs.Screen
           name="profile"
           options={{
-            title: 'Profile',
-            headerTitle: 'My Profile',
+            title: '',
+            headerLeft: () => (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16 }}>
+                <Image
+                  source={require('@/assets/images/logo.png')}
+                  style={{ width: 28, height: 28, marginRight: 8 }}
+                  resizeMode="contain"
+                />
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: Colors[colorScheme ?? 'light'].tint }}>MediMate</Text>
+              </View>
+            ),
+            headerRight: () => <ProfileIcon />,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="person" color={color} focused={focused} />
             ),
@@ -277,5 +339,13 @@ const styles = StyleSheet.create({
         marginTop: -30, // Adjusted for the larger FAB
       },
     }),
+  },
+  profileIconContainer: {
+    marginRight: 15,
+    padding: 5,
+  },
+  profileIconBackground: {
+    borderRadius: 20,
+    padding: 2,
   },
 });
