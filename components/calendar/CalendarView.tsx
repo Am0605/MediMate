@@ -74,19 +74,16 @@ export default function CalendarView({ selectedDate, setSelectedDate, appointmen
     textSectionTitleColor: Colors[colorScheme].text,
     selectedDayBackgroundColor: Colors[colorScheme].tint,
     selectedDayTextColor: '#ffffff',
-    todayTextColor: Colors[colorScheme].tint,
-    dayTextColor: Colors[colorScheme].text,
+    todayTextColor: '#FF3B30',
+    dayTextColor: isDark ? '#FF0000' : '#2C3E50',
     textDisabledColor: isDark ? '#555555' : '#d9e1e8',
     dotColor: Colors[colorScheme].tint,
     selectedDotColor: '#ffffff',
     arrowColor: Colors[colorScheme].tint,
-    monthTextColor: Colors[colorScheme].text,
+    monthTextColor: isDark ? '#E0E0E0' : '#2C3E50',
     indicatorColor: Colors[colorScheme].tint,
-    textDayFontWeight: '300',
-    textMonthFontWeight: 'bold',
-    textDayHeaderFontWeight: '300',
     textDayFontSize: 16,
-    textMonthFontSize: 16,
+    textMonthFontSize: 18,
     textDayHeaderFontSize: 14
   };
 
