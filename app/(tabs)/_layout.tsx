@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, Tabs, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View, Dimensions, Platform } from 'react-native';
@@ -7,6 +7,10 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import FAB from '@/components/FAB';
+import AIModal from '@/components/AIModal';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 function TabBarIcon(props: {
   name: string;
@@ -18,12 +22,20 @@ function TabBarIcon(props: {
     : `${props.name}-outline`;
 
   return (
-    <Ionicons
-      name={iconName as any}
-      size={24}
-      style={{ marginBottom: Platform.OS === 'android' ? 0 : -3 }}
-      color={props.color}
-    />
+    <View style={[styles.tabIconContainer, props.focused && styles.tabIconFocused]}>
+      <Ionicons
+        name={iconName as any}
+        size={props.focused ? 26 : 24}
+        style={{ 
+          marginBottom: Platform.OS === 'android' ? 0 : -3,
+          transform: [{ scale: props.focused ? 1.1 : 1 }],
+        }}
+        color={props.color}
+      />
+      {props.focused && (
+        <View style={[styles.focusIndicator, { backgroundColor: props.color }]} />
+      )}
+    </View>
   );
 }
 
@@ -31,9 +43,10 @@ function TabBarIcon(props: {
 function TabBarButton(props: any) {
   const { onPress, ...otherProps } = props;
   
-  // Handle press with haptic feedback
   const handlePress = () => {
-    if (Platform.OS === 'android') {
+    if (Platform.OS === 'ios') {
+      Haptics.selectionAsync();
+    } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     onPress && onPress();
@@ -43,20 +56,46 @@ function TabBarButton(props: any) {
     <Pressable 
       {...otherProps} 
       onPress={handlePress}
-      android_ripple={null} // Disable ripple effect on Android
+      style={({ pressed }) => [
+        otherProps.style,
+        {
+          transform: [{ scale: pressed ? 0.95 : 1 }],
+          opacity: pressed ? 0.7 : 1,
+        }
+      ]}
+      android_ripple={{ 
+        color: 'rgba(0,0,0,0.1)', 
+        borderless: false,
+        radius: 40
+      }}
     />
+  );
+}
+
+// FAB Tab Button Component using the FAB component
+function FABTabButton({ onPress }: { onPress: () => void }) {
+  return (
+    <View style={styles.fabTabContainer}>
+      <FAB 
+        onPress={onPress} 
+        icon="sparkles" 
+        size={24} 
+      />
+    </View>
   );
 }
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
-  // Header right profile icon component with haptic feedback
   const ProfileIcon = () => {
     const handleProfilePress = () => {
-      if (Platform.OS === 'android') {
+      if (Platform.OS === 'ios') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        Haptics.selectionAsync();
       }
       router.push('/(setting)/profile');
     };
@@ -65,103 +104,227 @@ export default function TabLayout() {
       <Pressable
         style={({ pressed }) => [
           styles.profileIconContainer,
-          Platform.OS === 'ios' && { opacity: pressed ? 0.7 : 1 },
+          {
+            transform: [{ scale: pressed ? 0.9 : 1 }],
+            opacity: pressed ? 0.7 : 1,
+          }
         ]}
         onPress={handleProfilePress}
-        android_ripple={null} 
+        android_ripple={{ 
+          color: 'rgba(0,0,0,0.1)', 
+          borderless: true,
+          radius: 25
+        }}
       >
-        <Ionicons
-          name="person-circle-outline"
-          size={28}
-          color={Colors[colorScheme ?? 'light'].text}
-        />
+        <View style={[styles.profileIconBackground, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
+          <Ionicons
+            name="person-circle-outline"
+            size={28}
+            color={Colors[colorScheme ?? 'light'].text}
+          />
+        </View>
       </Pressable>
     );
   };
 
+  const handleFABPress = () => {
+    setIsModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+  };
+
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: useClientOnlyValue(false, true),
-        headerRight: () => <ProfileIcon />,
-        tabBarShowLabel: true,
-        tabBarStyle: {
-          backgroundColor: Colors[colorScheme ?? 'light'].card,
-          borderTopColor: Colors[colorScheme ?? 'light'].border,
-          // Android-specific styling
-          ...(Platform.OS === 'android' && {
-            height: 65,
-            paddingBottom: 20,
-            paddingTop: 0,
-          })
-        },
-        // Android-specific tab bar label style
-        tabBarLabelStyle: Platform.OS === 'android' ? {
-          paddingBottom: 8,
-          fontSize: 12,
-        } : undefined,
-        // Android-specific tab bar icon style
-        tabBarIconStyle: Platform.OS === 'android' ? {
-          marginTop: 2,
-        } : undefined,
-        // Use the custom tab bar button with haptic feedback
-        tabBarButton: (props) => <TabBarButton {...props} />,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="home" color={color} focused={focused} />
-          ),
+    <>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+          tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
+          headerShown: useClientOnlyValue(false, true),
+          headerRight: () => <ProfileIcon />,
+          tabBarShowLabel: false,
+          tabBarStyle: {
+            backgroundColor: Colors[colorScheme ?? 'light'].card,
+            borderTopColor: Colors[colorScheme ?? 'light'].border,
+            borderTopWidth: Platform.OS === 'ios' ? 0.5 : 1,
+            position: 'relative',
+            ...Platform.select({
+              ios: {
+                height: 90,
+                paddingBottom: 25,
+                paddingTop: 10,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: -4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+              },
+              android: {
+                height: 75,
+                paddingBottom: 15,
+                paddingTop: 8,
+                elevation: 8,
+              },
+            }),
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '600',
+            ...Platform.select({
+              ios: {
+                paddingTop: 4,
+              },
+              android: {
+                paddingBottom: 5,
+                marginTop: -2,
+              },
+            }),
+          },
+          tabBarIconStyle: Platform.OS === 'android' ? {
+            marginTop: 2,
+          } : {
+            marginBottom: -2,
+          },
+          tabBarButton: (props) => <TabBarButton {...props} />,
+          headerStyle: {
+            backgroundColor: Colors[colorScheme ?? 'light'].card,
+            ...Platform.select({
+              ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+              },
+              android: {
+                elevation: 4,
+              },
+            }),
+          },
+          headerTitleStyle: {
+            color: Colors[colorScheme ?? 'light'].text,
+            fontSize: 18,
+            fontWeight: '600',
+          },
         }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: 'Calendar',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="calendar" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="button"
-        options={{
-          title: 'Add',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="finger-print" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="medication"
-        options={{
-          title: 'Medical',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="medical" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="person" color={color} focused={focused} />
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            headerTitle: 'MediMate',
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="home" color={color} focused={focused} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="calendar"
+          options={{
+            title: 'Calendar',
+            headerTitle: 'Schedule',
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="calendar" color={color} focused={focused} />
+            ),
+          }}
+        />
+        
+        {/* FAB as middle tab */}
+        <Tabs.Screen
+          name="ai-fab"
+          options={{
+            title: '',
+            tabBarLabel: () => null,
+            tabBarIcon: () => null,
+            tabBarButton: () => <FABTabButton onPress={handleFABPress} />,
+          }}
+        />
+        
+        <Tabs.Screen
+          name="medication"
+          options={{
+            title: 'Medical',
+            headerTitle: 'Medications',
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="medical" color={color} focused={focused} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            headerTitle: 'My Profile',
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="person" color={color} focused={focused} />
+            ),
+          }}
+        />
+      </Tabs>
+      
+      <AIModal visible={isModalVisible} onClose={handleModalClose} />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   profileIconContainer: {
     marginRight: 15,
+    borderRadius: 22,
+    padding: 2,
+  },
+  profileIconBackground: {
     borderRadius: 20,
-    padding: 3,
+    padding: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  tabIconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    paddingVertical: 4,
+  },
+  tabIconFocused: {
+    transform: [{ translateY: -2 }],
+  },
+  focusIndicator: {
+    position: 'absolute',
+    bottom: -8,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    ...Platform.select({
+      ios: {
+        bottom: -12,
+      },
+      android: {
+        bottom: -12,
+      },
+    }),
+  },
+  fabTabContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        marginTop: -50, // Adjusted for the larger FAB
+      },
+      android: {
+        marginTop: -30, // Adjusted for the larger FAB
+      },
+    }),
   },
 });
