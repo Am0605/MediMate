@@ -35,3 +35,14 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# Config files with sensitive data
+config/secrets.ts
+config/api-keys.ts
