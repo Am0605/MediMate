@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { StyleSheet, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { StyleSheet, ScrollView, Alert, TouchableOpacity, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { geminiService } from '@/services/geminiService';
+import SymptomLoadingIndicator from '@/components/ai/SymptomLoadingIndicator';
+import SymptomAnalysisResult from '@/components/ai/SymptomAnalysisResult';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 
@@ -26,22 +30,113 @@ interface SymptomAnalysis {
   disclaimerText: string;
 }
 
+// Enhanced symptom data with proper icons
 const commonSymptoms = [
-  { id: 'fever', label: 'Fever', icon: 'thermometer' },
-  { id: 'headache', label: 'Headache', icon: 'head' },
-  { id: 'cough', label: 'Cough', icon: 'lungs' },
-  { id: 'sore_throat', label: 'Sore Throat', icon: 'throat' },
-  { id: 'fatigue', label: 'Fatigue', icon: 'battery-dead' },
-  { id: 'nausea', label: 'Nausea', icon: 'stomach' },
-  { id: 'dizziness', label: 'Dizziness', icon: 'dizzy' },
-  { id: 'chest_pain', label: 'Chest Pain', icon: 'heart' },
-  { id: 'shortness_breath', label: 'Shortness of Breath', icon: 'lungs' },
-  { id: 'abdominal_pain', label: 'Abdominal Pain', icon: 'body' },
-  { id: 'muscle_pain', label: 'Muscle Pain', icon: 'fitness' },
-  { id: 'joint_pain', label: 'Joint Pain', icon: 'bone' },
-  { id: 'skin_rash', label: 'Skin Rash', icon: 'medical' },
-  { id: 'swelling', label: 'Swelling', icon: 'water' },
-  { id: 'others', label: 'Others', icon: 'ellipsis-horizontal' },
+  { 
+    id: 'fever', 
+    label: 'Fever', 
+    icon: 'thermometer-outline',
+    iconFamily: 'ionicons',
+    color: '#DC2626'
+  },
+  { 
+    id: 'headache', 
+    label: 'Headache', 
+    icon: 'head-side-cough',
+    iconFamily: 'fontawesome5',
+    color: '#7C2D12'
+  },
+  { 
+    id: 'cough', 
+    label: 'Cough', 
+    icon: 'sick',
+    iconFamily: 'materialicons',
+    color: '#B45309'
+  },
+  { 
+    id: 'sore_throat', 
+    label: 'Sore Throat', 
+    icon: 'healing',
+    iconFamily: 'materialicons',
+    color: '#BE185D'
+  },
+  { 
+    id: 'fatigue', 
+    label: 'Fatigue', 
+    icon: 'battery-dead-outline',
+    iconFamily: 'ionicons',
+    color: '#374151'
+  },
+  { 
+    id: 'nausea', 
+    label: 'Nausea', 
+    icon: 'no-food',
+    iconFamily: 'materialicons',
+    color: '#059669'
+  },
+  { 
+    id: 'dizziness', 
+    label: 'Dizziness', 
+    icon: 'psychology',
+    iconFamily: 'materialicons',
+    color: '#7C3AED'
+  },
+  { 
+    id: 'chest_pain', 
+    label: 'Chest Pain', 
+    icon: 'heart-outline',
+    iconFamily: 'ionicons',
+    color: '#DC2626'
+  },
+  { 
+    id: 'shortness_breath', 
+    label: 'Shortness of Breath', 
+    icon: 'lungs',
+    iconFamily: 'fontawesome5',
+    color: '#0284C7'
+  },
+  { 
+    id: 'abdominal_pain', 
+    label: 'Abdominal Pain', 
+    icon: 'body-outline',
+    iconFamily: 'ionicons',
+    color: '#EA580C'
+  },
+  { 
+    id: 'muscle_pain', 
+    label: 'Muscle Pain', 
+    icon: 'fitness-outline',
+    iconFamily: 'ionicons',
+    color: '#16A34A'
+  },
+  { 
+    id: 'joint_pain', 
+    label: 'Joint Pain', 
+    icon: 'bone',
+    iconFamily: 'fontawesome5',
+    color: '#CA8A04'
+  },
+  { 
+    id: 'skin_rash', 
+    label: 'Skin Rash', 
+    icon: 'medical-outline',
+    iconFamily: 'ionicons',
+    color: '#DB2777'
+  },
+  { 
+    id: 'swelling', 
+    label: 'Swelling', 
+    icon: 'water-outline',
+    iconFamily: 'ionicons',
+    color: '#0891B2'
+  },
+  { 
+    id: 'others', 
+    label: 'Others', 
+    icon: 'ellipsis-horizontal',
+    iconFamily: 'ionicons',
+    color: '#6B7280'
+  },
 ];
 
 const durationOptions = [
@@ -51,6 +146,65 @@ const durationOptions = [
   { value: '1_2_weeks', label: '1-2 weeks' },
   { value: 'more_than_2_weeks', label: 'More than 2 weeks' },
 ];
+
+// Memoized symptom button component for better performance
+const SymptomButton = React.memo(({ 
+  symptom, 
+  isSelected, 
+  onPress, 
+  colorScheme 
+}: {
+  symptom: typeof commonSymptoms[0],
+  isSelected: boolean,
+  onPress: () => void,
+  colorScheme: 'light' | 'dark'
+}) => {
+  const renderIcon = () => {
+    const iconProps = {
+      size: 22,
+      color: isSelected ? symptom.color : Colors[colorScheme].textSecondary
+    };
+
+    switch (symptom.iconFamily) {
+      case 'fontawesome5':
+        return <FontAwesome5 name={symptom.icon as any} {...iconProps} />;
+      case 'materialicons':
+        return <MaterialIcons name={symptom.icon as any} {...iconProps} />;
+      default:
+        return <Ionicons name={symptom.icon as any} {...iconProps} />;
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.symptomButton,
+        {
+          backgroundColor: isSelected
+            ? symptom.color + '15'
+            : Colors[colorScheme].background,
+          borderColor: isSelected
+            ? symptom.color
+            : Colors[colorScheme].border,
+        }
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {renderIcon()}
+      <Text style={[
+        styles.symptomButtonText,
+        {
+          color: isSelected
+            ? symptom.color
+            : Colors[colorScheme].text
+        }
+      ]}>
+        {symptom.label}
+      </Text>
+    </TouchableOpacity>
+  );
+});
 
 export default function SymptomCheckerScreen() {
   const colorScheme = useColorScheme();
@@ -66,15 +220,37 @@ export default function SymptomCheckerScreen() {
   const [analysis, setAnalysis] = useState<SymptomAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const handleSymptomToggle = (symptomId: string) => {
+  // Optimized symptom toggle with useCallback
+  const handleSymptomToggle = useCallback((symptomId: string) => {
     setSymptomData(prev => ({
       ...prev,
       symptoms: prev.symptoms.includes(symptomId)
         ? prev.symptoms.filter(id => id !== symptomId)
         : [...prev.symptoms, symptomId]
     }));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
+    
+    // Reduce haptic feedback intensity for Android
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      Haptics.selectionAsync();
+    }
+  }, []);
+
+  // Memoized symptoms grid for better performance
+  const symptomsGrid = useMemo(() => (
+    <View style={styles.symptomsGrid}>
+      {commonSymptoms.map((symptom) => (
+        <SymptomButton
+          key={symptom.id}
+          symptom={symptom}
+          isSelected={symptomData.symptoms.includes(symptom.id)}
+          onPress={() => handleSymptomToggle(symptom.id)}
+          colorScheme={colorScheme ?? 'light'}
+        />
+      ))}
+    </View>
+  ), [symptomData.symptoms, handleSymptomToggle, colorScheme]);
 
   const handleImagePicker = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -177,222 +353,51 @@ export default function SymptomCheckerScreen() {
     setCurrentStep('input');
   };
 
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
-      case 'emergency': return '#DC2626';
-      case 'high': return '#EA580C';
-      case 'medium': return '#D97706';
-      case 'low': return '#059669';
-      default: return Colors[colorScheme ?? 'light'].text;
-    }
-  };
-
-  const getUrgencyIcon = (urgency: string) => {
-    switch (urgency) {
-      case 'emergency': return 'warning';
-      case 'high': return 'alert-circle';
-      case 'medium': return 'information-circle';
-      case 'low': return 'checkmark-circle';
-      default: return 'information-circle';
-    }
-  };
-
+  // Show loading indicator
   if (currentStep === 'analyzing') {
-    return (
-      <View style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
-        <View style={styles.loadingContainer}>
-          <View style={[styles.loadingCard, { backgroundColor: Colors[colorScheme ?? 'light'].card }]}>
-            <Ionicons name="medical" size={48} color={Colors[colorScheme ?? 'light'].tint} />
-            <Text style={[styles.loadingTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
-              Analyzing Symptoms
-            </Text>
-            <Text style={[styles.loadingSubtitle, { color: Colors[colorScheme ?? 'light'].textSecondary }]}>
-              Our AI is reviewing your symptoms and providing recommendations...
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
+    return <SymptomLoadingIndicator step="analyzing" />;
   }
 
+  // Show results
   if (currentStep === 'results' && analysis) {
     return (
-      <View style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>
-              Symptom Analysis
-            </Text>
-            <Text style={[styles.subtitle, { color: Colors[colorScheme ?? 'light'].textSecondary }]}>
-              AI-powered health assessment based on your symptoms
-            </Text>
-          </View>
-
-          {/* Urgency Level */}
-          <View style={[styles.urgencyCard, { backgroundColor: Colors[colorScheme ?? 'light'].card }]}>
-            <View style={styles.urgencyHeader}>
-              <Ionicons 
-                name={getUrgencyIcon(analysis.urgencyLevel)} 
-                size={24} 
-                color={getUrgencyColor(analysis.urgencyLevel)} 
-              />
-              <Text style={[styles.urgencyTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
-                Urgency Level: {analysis.urgencyLevel.charAt(0).toUpperCase() + analysis.urgencyLevel.slice(1)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Assessment */}
-          <View style={[styles.section, { backgroundColor: Colors[colorScheme ?? 'light'].card }]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="clipboard" size={20} color="#4F46E5" />
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
-                Assessment
-              </Text>
-            </View>
-            <Text style={[styles.sectionContent, { color: Colors[colorScheme ?? 'light'].text }]}>
-              {analysis.assessment}
-            </Text>
-          </View>
-
-          {/* Possible Conditions */}
-          {analysis.possibleConditions.length > 0 && (
-            <View style={[styles.section, { backgroundColor: Colors[colorScheme ?? 'light'].card }]}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="list" size={20} color="#DC2626" />
-                <Text style={[styles.sectionTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
-                  Possible Conditions
-                </Text>
-              </View>
-              {analysis.possibleConditions.map((condition, index) => (
-                <View key={index} style={styles.conditionItem}>
-                  <Ionicons name="ellipse" size={6} color={Colors[colorScheme ?? 'light'].tint} />
-                  <Text style={[styles.conditionText, { color: Colors[colorScheme ?? 'light'].text }]}>
-                    {condition}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Recommendations */}
-          <View style={[styles.section, { backgroundColor: Colors[colorScheme ?? 'light'].card }]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="bulb" size={20} color="#059669" />
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
-                Recommendations
-              </Text>
-            </View>
-            {analysis.recommendations.map((recommendation, index) => (
-              <View key={index} style={styles.recommendationItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#059669" />
-                <Text style={[styles.recommendationText, { color: Colors[colorScheme ?? 'light'].text }]}>
-                  {recommendation}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Disclaimer */}
-          <View style={[styles.disclaimerCard, { backgroundColor: Colors[colorScheme ?? 'light'].card }]}>
-            <View style={styles.disclaimerHeader}>
-              <Ionicons name="information-circle" size={20} color="#EA580C" />
-              <Text style={[styles.disclaimerTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
-                Important Disclaimer
-              </Text>
-            </View>
-            <Text style={[styles.disclaimerText, { color: Colors[colorScheme ?? 'light'].textSecondary }]}>
-              {analysis.disclaimerText}
-            </Text>
-          </View>
-
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.secondaryButton, { borderColor: Colors[colorScheme ?? 'light'].border }]}
-              onPress={handleStartOver}
-            >
-              <Ionicons name="refresh" size={16} color={Colors[colorScheme ?? 'light'].text} />
-              <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme ?? 'light'].text }]}>
-                Check Again
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: Colors[colorScheme ?? 'light'].tint }]}
-              onPress={() => {
-                // Navigate to find nearby doctors or emergency contacts
-                Alert.alert('Feature Coming Soon', 'Find nearby doctors feature will be available soon.');
-              }}
-            >
-              <Ionicons name="location" size={16} color="white" />
-              <Text style={styles.primaryButtonText}>
-                Find Doctors
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
+      <SymptomAnalysisResult 
+        analysis={analysis} 
+        onStartOver={handleStartOver}
+        onFindDoctors={() => {
+          Alert.alert('Feature Coming Soon', 'Find nearby doctors feature will be available soon.');
+        }}
+      />
     );
   }
 
+  // Show input form (rest of your existing input UI code...)
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>
-            Symptom Checker
-          </Text>
-          <Text style={[styles.subtitle, { color: Colors[colorScheme ?? 'light'].textSecondary }]}>
-            Describe your symptoms to get AI-powered health insights
-          </Text>
+          <View style={styles.headerContent}>
+            <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>
+              Symptom Checker
+            </Text>
+            <Text style={[styles.subtitle, { color: Colors[colorScheme ?? 'light'].textSecondary }]}>
+              Describe your symptoms to get AI-powered health insights
+            </Text>
+          </View>
         </View>
 
         {/* Common Symptoms */}
         <View style={[styles.section, { backgroundColor: Colors[colorScheme ?? 'light'].card }]}>
-          <Text style={[styles.sectionTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
-            Select Your Symptoms
-          </Text>
-          <View style={styles.symptomsGrid}>
-            {commonSymptoms.map((symptom) => (
-              <TouchableOpacity
-                key={symptom.id}
-                style={[
-                  styles.symptomButton,
-                  {
-                    backgroundColor: symptomData.symptoms.includes(symptom.id)
-                      ? Colors[colorScheme ?? 'light'].tint + '20'
-                      : Colors[colorScheme ?? 'light'].background,
-                    borderColor: symptomData.symptoms.includes(symptom.id)
-                      ? Colors[colorScheme ?? 'light'].tint
-                      : Colors[colorScheme ?? 'light'].border,
-                  }
-                ]}
-                onPress={() => handleSymptomToggle(symptom.id)}
-              >
-                <Ionicons 
-                  name={symptom.icon as any} 
-                  size={20} 
-                  color={symptomData.symptoms.includes(symptom.id)
-                    ? Colors[colorScheme ?? 'light'].tint
-                    : Colors[colorScheme ?? 'light'].textSecondary
-                  } 
-                />
-                <Text style={[
-                  styles.symptomButtonText,
-                  {
-                    color: symptomData.symptoms.includes(symptom.id)
-                      ? Colors[colorScheme ?? 'light'].tint
-                      : Colors[colorScheme ?? 'light'].text
-                  }
-                ]}>
-                  {symptom.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconContainer, { backgroundColor: Colors[colorScheme ?? 'light'].tint + '20' }]}>
+              <Ionicons name="medical" size={20} color={Colors[colorScheme ?? 'light'].tint} />
+            </View>
+            <Text style={[styles.sectionTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
+              Select Your Symptoms
+            </Text>
           </View>
+          {symptomsGrid}
         </View>
 
         {/* Custom Symptoms */}
@@ -633,21 +638,28 @@ export default function SymptomCheckerScreen() {
         {/* Analyze Button */}
         <View style={styles.analyzeButtonContainer}>
           <TouchableOpacity
-            style={[styles.analyzeButton, { backgroundColor: Colors[colorScheme ?? 'light'].tint }]}
+            style={[styles.analyzeButton, { 
+              backgroundColor: Colors[colorScheme ?? 'light'].tint,
+              opacity: isAnalyzing ? 0.6 : 1
+            }]}
             onPress={handleAnalyzeSymptoms}
             disabled={isAnalyzing}
           >
-            <Ionicons name="medical" size={20} color="white" />
+            <Ionicons name="search" size={20} color="white" />
             <Text style={styles.analyzeButtonText}>
-              Analyze Symptoms
+              {isAnalyzing ? 'Analyzing...' : 'Analyze Symptoms'}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Bottom Spacing */}
+        <View style={{ height: 30 }} />
       </ScrollView>
     </View>
   );
 }
 
+// Add the rest of your existing styles...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -935,12 +947,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 12, 
     gap: 6,
   },
   primaryButtonText: {
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  headerContent: {
+    alignItems: 'flex-start',
+  },
+  sectionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
