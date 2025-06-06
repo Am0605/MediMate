@@ -7,7 +7,7 @@ class OCRService {
   private readonly OCR_SPACE_URL = 'https://api.ocr.space/parse/image';
   
   // Google Cloud Vision API configuration
-  private readonly GOOGLE_CLOUD_API_KEY = 'AIzaSyBAAL1ESwQFk_YG1i63GSP-_zmgFzmx4Bw'; 
+  private readonly GOOGLE_CLOUD_API_KEY = 'AIzaSyDgb2I9TW2jeppythTZAarfNRfiBLMLnm4'; 
   private readonly GOOGLE_VISION_URL = 'https://vision.googleapis.com/v1/images:annotate';
 
   // OCR.space limitations
@@ -75,8 +75,7 @@ class OCRService {
   }
 
   private isGoogleCloudVisionAvailable(): boolean {
-    return this.GOOGLE_CLOUD_API_KEY !== 'YOUR_GOOGLE_CLOUD_API_KEY' && 
-           this.GOOGLE_CLOUD_API_KEY.length > 0;
+    return this.GOOGLE_CLOUD_API_KEY.length > 0;
   }
 
   private async extractTextWithOCRSpace(imageUri: string): Promise<string> {
