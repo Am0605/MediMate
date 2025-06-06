@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import * as FileSystem from 'expo-file-system'; // Add this import
+import * as FileSystem from 'expo-file-system';
+import ENV from '@/config/env';
 
 interface SimplificationResult {
   simplifiedText: string;
@@ -27,11 +28,26 @@ interface SymptomAnalysis {
 }
 
 class GeminiService {
-  private readonly API_KEY = 'AIzaSyCiC29Cb0pvgu-EpmMmeDePtF_qTiSxEl4';
-  private readonly BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+  private readonly API_KEY = ENV.GEMINI_API_KEY;
+  private readonly BASE_URL = ENV.GEMINI_BASE_URL;
+
+  constructor() {
+    // Validate API key on initialization
+    if (!this.API_KEY || this.API_KEY === '') {
+      console.warn('Gemini API key not configured. Please set EXPO_PUBLIC_GEMINI_API_KEY in your environment variables.');
+    }
+  }
+
+  private validateApiKey(): void {
+    if (!this.API_KEY || this.API_KEY === '') {
+      throw new Error('Gemini API key not configured. Please check your environment variables.');
+    }
+  }
 
   async simplifyMedicalDocument(medicalText: string, documentType: string): Promise<SimplificationResult> {
     try {
+      this.validateApiKey();
+      
       const prompt = this.createComprehensiveSimplificationPrompt(medicalText, documentType);
       const response = await this.generateContent(prompt);
       
@@ -54,6 +70,8 @@ class GeminiService {
 
   private async generateContent(prompt: string): Promise<string> {
     try {
+      this.validateApiKey();
+
       const response = await fetch(`${this.BASE_URL}/gemini-2.0-flash:generateContent?key=${this.API_KEY}`, {
         method: 'POST',
         headers: {
@@ -128,6 +146,8 @@ class GeminiService {
   // Method for generating content with multimodal input (text + image)
   private async generateMultimodalContent(prompt: string, base64Image: string): Promise<string> {
     try {
+      this.validateApiKey();
+
       const response = await fetch(`${this.BASE_URL}/gemini-2.0-flash:generateContent?key=${this.API_KEY}`, {
         method: 'POST',
         headers: {
@@ -393,6 +413,11 @@ Return ONLY the tips, one per line, without numbers or bullet points:
 
   async testConnection(): Promise<boolean> {
     try {
+      if (!this.API_KEY || this.API_KEY === '') {
+        console.warn('No Gemini API key configured');
+        return false;
+      }
+
       const response = await this.generateContent('Say "Hello" in one word.');
       return response.toLowerCase().includes('hello');
     } catch (error) {
@@ -401,30 +426,28 @@ Return ONLY the tips, one per line, without numbers or bullet points:
     }
   }
 
-  private async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  // Check if service is properly configured
+  isConfigured(): boolean {
+    return !!(this.API_KEY && this.API_KEY !== '');
   }
 
-  async generateContentWithRetry(prompt: string, maxRetries: number = 3): Promise<string> {
-    let lastError: Error;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await this.generateContent(prompt);
-      } catch (error) {
-        lastError = error as Error;
-        
-        if (attempt < maxRetries) {
-          await this.delay(Math.pow(2, attempt) * 1000);
-        }
-      }
-    }
-
-    throw lastError!;
+  // Get configuration status for debugging
+  getConfigStatus(): { 
+    hasApiKey: boolean; 
+    baseUrl: string; 
+    environment: string; 
+  } {
+    return {
+      hasApiKey: !!(this.API_KEY && this.API_KEY !== ''),
+      baseUrl: this.BASE_URL,
+      environment: ENV.isDevelopment ? 'development' : 'production'
+    };
   }
 
   async analyzeSymptoms(symptomData: SymptomData): Promise<SymptomAnalysis> {
     try {
+      this.validateApiKey();
+      
       let prompt = this.createSymptomAnalysisPrompt(symptomData);
       let response: string;
 

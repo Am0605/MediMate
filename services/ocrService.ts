@@ -1,17 +1,30 @@
 import * as FileSystem from 'expo-file-system';
+import ENV from '@/config/env';
 
 export type OCRProvider = 'ocr_space' | 'google_cloud_vision';
 
 class OCRService {
-  private readonly OCR_SPACE_API_KEY = 'K89515575788957';
+  private readonly OCR_SPACE_API_KEY = ENV.OCR_SPACE_API_KEY;
   private readonly OCR_SPACE_URL = 'https://api.ocr.space/parse/image';
   
   // Google Cloud Vision API configuration
-  private readonly GOOGLE_CLOUD_API_KEY = 'AIzaSyDgb2I9TW2jeppythTZAarfNRfiBLMLnm4'; 
+  private readonly GOOGLE_CLOUD_API_KEY = ENV.GOOGLE_CLOUD_API_KEY;
   private readonly GOOGLE_VISION_URL = 'https://vision.googleapis.com/v1/images:annotate';
 
   // OCR.space limitations
-  private readonly OCR_SPACE_MAX_SIZE_MB = 1; //  free tier
+  private readonly OCR_SPACE_MAX_SIZE_MB = 1; // 1MB limit for free tier
+  private readonly OCR_SPACE_MAX_SIZE_PAID_MB = 5; // 5MB for paid tier
+
+  constructor() {
+    // Validate API keys on initialization
+    if (!this.OCR_SPACE_API_KEY || this.OCR_SPACE_API_KEY === '') {
+      console.warn('OCR Space API key not configured. Please set EXPO_PUBLIC_OCR_SPACE_API_KEY in your environment variables.');
+    }
+    
+    if (!this.GOOGLE_CLOUD_API_KEY || this.GOOGLE_CLOUD_API_KEY === '') {
+      console.warn('Google Cloud Vision API key not configured. Please set EXPO_PUBLIC_GOOGLE_CLOUD_API_KEY in your environment variables.');
+    }
+  }
 
   async extractTextFromImage(imageUri: string, preferredProvider: OCRProvider = 'ocr_space'): Promise<string> {
     try {
@@ -75,7 +88,19 @@ class OCRService {
   }
 
   private isGoogleCloudVisionAvailable(): boolean {
-    return this.GOOGLE_CLOUD_API_KEY.length > 0;
+    return !!(this.GOOGLE_CLOUD_API_KEY && 
+             this.GOOGLE_CLOUD_API_KEY !== '' );
+  }
+
+  // Check if services are properly configured
+  getConfigStatus(): { 
+    ocrSpace: boolean; 
+    googleCloudVision: boolean;
+  } {
+    return {
+      ocrSpace: !!(this.OCR_SPACE_API_KEY && this.OCR_SPACE_API_KEY !== ''),
+      googleCloudVision: this.isGoogleCloudVisionAvailable()
+    };
   }
 
   private async extractTextWithOCRSpace(imageUri: string): Promise<string> {
