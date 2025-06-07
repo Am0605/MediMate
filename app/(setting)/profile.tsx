@@ -16,10 +16,28 @@ import { supabase } from '@/config/supabase';
 import { useColorScheme, useThemeControl } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
+  height?: string;
+  weight?: string;
+  blood_type?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+}
+
 // Profile screen component
 export default function ProfileScreen() {
   const [loading, setLoading] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
+  const [userData, setUserData] = useState<UserProfile | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -36,7 +54,7 @@ export default function ProfileScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // Get user metadata or profile data
+        // Get user profile data
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
@@ -45,11 +63,17 @@ export default function ProfileScreen() {
 
         if (profile) {
           setUserData({
-            ...user,
+            id: user.id,
+            email: user.email || '',
             ...profile
           });
         } else {
-          setUserData(user);
+          // If no profile exists, create basic one
+          setUserData({
+            id: user.id,
+            email: user.email || '',
+            full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
+          });
         }
       }
     } catch (error) {
@@ -93,6 +117,30 @@ export default function ProfileScreen() {
     router.push('/(setting)/edit-profile');
   };
 
+  // Calculate age from date of birth
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
   if (loading && !userData) {
     return (
       <View style={styles.loadingContainer}>
@@ -130,7 +178,7 @@ export default function ProfileScreen() {
         </View>
         
         <Text style={[styles.userName, {color: Colors[colorScheme].text}]}>
-          {userData?.full_name || userData?.user_metadata?.full_name || 'User'}
+          {userData?.full_name || `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim() || 'User'}
         </Text>
         <Text style={[styles.userEmail, {color: Colors[colorScheme].text}]}>{userData?.email}</Text>
         
@@ -141,6 +189,120 @@ export default function ProfileScreen() {
           <Text style={[styles.editButtonText, {color: Colors[colorScheme].tint}]}>Edit Profile</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Personal Information */}
+      {userData && (userData.date_of_birth || userData.gender || userData.phone) && (
+        <View style={[styles.section, {backgroundColor: Colors[colorScheme].card}]}>
+          <Text style={[styles.sectionTitle, {color: Colors[colorScheme].text}]}>Personal Information</Text>
+          
+          {userData.date_of_birth && (
+            <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+              <View style={styles.infoLeft}>
+                <Ionicons name="calendar-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Date of Birth</Text>
+              </View>
+              <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {formatDate(userData.date_of_birth)} ({calculateAge(userData.date_of_birth)} years)
+              </Text>
+            </View>
+          )}
+
+          {userData.gender && (
+            <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+              <View style={styles.infoLeft}>
+                <Ionicons name="person-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Gender</Text>
+              </View>
+              <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}>{userData.gender}</Text>
+            </View>
+          )}
+
+          {userData.phone && (
+            <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+              <View style={styles.infoLeft}>
+                <Ionicons name="call-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Phone</Text>
+              </View>
+              <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}>{userData.phone}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Health Information */}
+      {userData && (userData.height || userData.weight || userData.blood_type) && (
+        <View style={[styles.section, {backgroundColor: Colors[colorScheme].card}]}>
+          <Text style={[styles.sectionTitle, {color: Colors[colorScheme].text}]}>Health Information</Text>
+          
+          {userData.height && (
+            <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+              <View style={styles.infoLeft}>
+                <Ionicons name="resize-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Height</Text>
+              </View>
+              <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}>{userData.height} cm</Text>
+            </View>
+          )}
+
+          {userData.weight && (
+            <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+              <View style={styles.infoLeft}>
+                <Ionicons name="fitness-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Weight</Text>
+              </View>
+              <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}>{userData.weight} kg</Text>
+            </View>
+          )}
+
+          {userData.blood_type && (
+            <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+              <View style={styles.infoLeft}>
+                <Ionicons name="water-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Blood Type</Text>
+              </View>
+              <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}>{userData.blood_type}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Emergency Contact */}
+      {userData && userData.emergency_contact_name && (
+        <View style={[styles.section, {backgroundColor: Colors[colorScheme].card}]}>
+          <Text style={[styles.sectionTitle, {color: Colors[colorScheme].text}]}>Emergency Contact</Text>
+          
+          <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+            <View style={styles.infoLeft}>
+              <Ionicons name="person-add-outline" size={20} color={Colors[colorScheme].text} />
+              <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Name</Text>
+            </View>
+            <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}>{userData.emergency_contact_name}</Text>
+          </View>
+
+          {userData.emergency_contact_phone && (
+            <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+              <View style={styles.infoLeft}>
+                <Ionicons name="call-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Phone</Text>
+              </View>
+              <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}>{userData.emergency_contact_phone}</Text>
+            </View>
+          )}
+
+          {userData.emergency_contact_relationship && (
+            <View style={[styles.infoRow, {borderBottomColor: isDark ? '#1E3A5F' : '#f0f0f0'}]}>
+              <View style={styles.infoLeft}>
+                <Ionicons name="heart-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.infoLabel, {color: Colors[colorScheme].text}]}>Relationship</Text>
+              </View>
+              <Text style={[styles.infoValue, {color: Colors[colorScheme].text}]}>{userData.emergency_contact_relationship}</Text>
+            </View>
+          )}
+        </View>
+      )}
       
       {/* Settings Section */}
       <View style={[styles.section, {backgroundColor: Colors[colorScheme].card}]}>
@@ -346,6 +508,30 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 15,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  infoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 16,
+    marginLeft: 12,
+    color: '#333',
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'right',
+    flex: 1,
   },
   settingItem: {
     flexDirection: 'row',

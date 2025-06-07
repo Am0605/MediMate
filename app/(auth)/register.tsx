@@ -73,22 +73,18 @@ export default function RegisterScreen() {
       
       if (error) throw error;
 
-      // Check if email confirmation is required
-      if (data?.user && data.session) {
-        // If no confirmation required or auto sign-in is enabled
-        Alert.alert(
-          'Registration Successful',
-          'Your account has been created successfully!',
-          [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
-        );
-      } else {
-        // Email confirmation required
-        Alert.alert(
-          'Verification Email Sent',
-          'Please check your email to verify your account before logging in.',
-          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-        );
-      }
+      // Always redirect to login page after registration
+      // User needs to confirm email first
+      Alert.alert(
+        'Registration Successful!',
+        'We\'ve sent a verification email to your address. Please check your email and click the verification link to activate your account.',
+        [
+          { 
+            text: 'Go to Login', 
+            onPress: () => router.replace('/(auth)/login') 
+          }
+        ]
+      );
       
     } catch (error: any) {
       setError(error.message || 'An unknown error occurred during registration');

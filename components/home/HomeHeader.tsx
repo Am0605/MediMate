@@ -1,11 +1,12 @@
-import React from 'react';
-import { StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Pressable, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
 import { UserInfo } from '@/types/home';
+import { supabase } from '@/config/supabase';
 import * as Haptics from 'expo-haptics';
 
 type HomeHeaderProps = {
@@ -13,8 +14,84 @@ type HomeHeaderProps = {
 };
 
 export default function HomeHeader({ userInfo }: HomeHeaderProps) {
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const colorScheme = useColorScheme();
   const router = useRouter();
+
+  useEffect(() => {
+    fetchUserAvatar();
+    
+    // Listen for profile changes
+    const channel = supabase
+      .channel('profile-avatar-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userInfo.id}`,
+        },
+        (payload) => {
+          console.log('🖼️ Avatar Change:', payload);
+          if (payload.new && 'avatar_url' in payload.new) {
+            setAvatarUrl(payload.new.avatar_url);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userInfo.id]);
+
+  const fetchUserAvatar = async () => {
+    try {
+      setLoading(true);
+      
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Error fetching user:', userError);
+        return;
+      }
+
+      if (!user || !user.id) {
+        console.log('No authenticated user found');
+        return;
+      }
+
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(user.id)) {
+        console.error('Invalid user ID format:', user.id);
+        return;
+      }
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        if (error.code !== 'PGRST116') { // PGRST116 = no rows found
+          console.error('Error fetching avatar:', error);
+        } else {
+          console.log('No profile found for user');
+        }
+      } else {
+        setAvatarUrl(profile?.avatar_url || null);
+      }
+    } catch (error) {
+      console.error('Error fetching user avatar:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleProfilePress = () => {
     if (Platform.OS === 'ios') {
@@ -52,6 +129,61 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
     
     return displayName;
   };
+
+  // Get user initials for fallback
+  const getUserInitials = () => {
+    const firstName = userInfo.firstName || '';
+    const lastName = userInfo.lastName || '';
+    
+    const firstInitial = firstName.charAt(0).toUpperCase();
+    const lastInitial = lastName.charAt(0).toUpperCase();
+    
+    if (firstInitial && lastInitial) {
+      return firstInitial + lastInitial;
+    } else if (firstInitial) {
+      return firstInitial;
+    } else if (userInfo.email) {
+      return userInfo.email.charAt(0).toUpperCase();
+    }
+    
+    return 'U';
+  };
+
+  const renderProfileImage = () => {
+    if (loading) {
+      return (
+        <View style={[styles.defaultAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
+          <Ionicons
+            name="person"
+            size={20}
+            color="#fff"
+          />
+        </View>
+      );
+    }
+
+    if (avatarUrl) {
+      return (
+        <Image 
+          source={{ uri: avatarUrl }} 
+          style={styles.avatarImage}
+          onError={() => {
+            console.log('Avatar image failed to load');
+            setAvatarUrl(null);
+          }}
+        />
+      );
+    }
+
+    // Fallback to initials
+    return (
+      <View style={[styles.defaultAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
+        <Text style={styles.initialsText}>
+          {getUserInitials()}
+        </Text>
+      </View>
+    );
+  };
   
   return (
     <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
@@ -80,12 +212,10 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
         }}
       >
         <View style={[styles.profileCard, { backgroundColor: Colors[colorScheme].background }]}>
-          <View style={[styles.profileIconBackground, { backgroundColor: Colors[colorScheme].background }]}>
-            <Ionicons
-              name="person-circle-outline"
-              size={35}
-              color={Colors[colorScheme].text}
-            />
+          <View style={styles.profileImageContainer}>
+            {renderProfileImage()}
+            {/* Optional online indicator */}
+            <View style={[styles.onlineIndicator, { backgroundColor: '#4CAF50' }]} />
           </View>
         </View>
       </Pressable>
@@ -119,7 +249,7 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     borderRadius: 25,
-    padding: 8,
+    padding: 4,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -129,8 +259,37 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  profileIconBackground: {
-    borderRadius: 20,
-    padding: 1.5,
+  profileImageContainer: {
+    position: 'relative',
+    width: 44,
+    height: 44,
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 21,
+    backgroundColor: '#f0f0f0',
+  },
+  defaultAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  initialsText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
 });

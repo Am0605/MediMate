@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  TextInput, 
-  Text, 
-  TouchableOpacity, 
-  KeyboardAvoidingView, 
+import {
+  StyleSheet,
+  View,
+  TextInput,
+  Text,
+  TouchableOpacity,
+  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Image
+  Alert,
 } from 'react-native';
-import { useRouter, Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/config/supabase';
@@ -18,32 +18,61 @@ import { supabase } from '@/config/supabase';
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [secureTextEntry, setSecureTextEntry] = useState(true);
+
   const router = useRouter();
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setError('Please fill in all fields');
-      return;
+  const validateForm = () => {
+    if (!email.trim()) {
+      setError('Please enter your email');
+      return false;
     }
-    
+
+    if (!password.trim()) {
+      setError('Please enter your password');
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleLogin = async () => {
+    if (!validateForm()) return;
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
-      if (error) throw error;
-      
-      // If login successful, navigate to the main app
-      router.replace('/(tabs)');
+
+      if (error) {
+        if (error.message.includes('Email not confirmed')) {
+          Alert.alert(
+            'Email Not Verified',
+            'Please check your email and click the verification link before logging in.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+        throw error;
+      }
+
+      // Navigation will be handled by the AuthStateManager in _layout.tsx
+      // It will check if user has seen onboarding and redirect accordingly
+
     } catch (error: any) {
-      setError(error.message || 'An unknown error occurred');
+      setError(error.message || 'An unknown error occurred during login');
     } finally {
       setLoading(false);
     }
@@ -56,25 +85,16 @@ export default function LoginScreen() {
     >
       <StatusBar style="dark" />
       
-      <View style={styles.logoContainer}>
-        <Image
-          source={require('@/assets/images/icon.png')} 
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.appName}>MediMate</Text>
-      </View>
-      
       <Text style={styles.title}>Welcome Back</Text>
       <Text style={styles.subtitle}>Sign in to your account</Text>
-      
+
       {error && <Text style={styles.errorText}>{error}</Text>}
-      
+
       <View style={styles.inputContainer}>
         <Ionicons name="mail-outline" size={22} color="#666" style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="Email Address"
+          placeholder="Email"
           placeholderTextColor="#888"
           value={email}
           onChangeText={setEmail}
@@ -82,7 +102,7 @@ export default function LoginScreen() {
           autoCapitalize="none"
         />
       </View>
-      
+
       <View style={styles.inputContainer}>
         <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.inputIcon} />
         <TextInput
@@ -91,44 +111,38 @@ export default function LoginScreen() {
           placeholderTextColor="#888"
           value={password}
           onChangeText={setPassword}
-          secureTextEntry={secureTextEntry}
+          secureTextEntry={!showPassword}
         />
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.eyeIcon}
-          onPress={() => setSecureTextEntry(!secureTextEntry)}
+          onPress={() => setShowPassword(!showPassword)}
         >
-          <Ionicons 
-            name={secureTextEntry ? "eye-outline" : "eye-off-outline"} 
-            size={22} 
-            color="#666" 
+          <Ionicons
+            name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+            size={22}
+            color="#666"
           />
         </TouchableOpacity>
       </View>
-      
-      <Link href="/(auth)/forgot-password" asChild>
-        <TouchableOpacity style={styles.forgotPassword}>
-          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-        </TouchableOpacity>
-      </Link>
-      
-      <TouchableOpacity 
-        style={styles.loginButton}
-        onPress={handleLogin}
-        disabled={loading}
-      >
+
+      <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
         {loading ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (
-          <Text style={styles.loginButtonText}>Login</Text>
+          <Text style={styles.loginButtonText}>Sign In</Text>
         )}
       </TouchableOpacity>
-      
+
+      <TouchableOpacity style={styles.forgotPassword}>
+        <Link href="/(auth)/forgot-password">
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        </Link>
+      </TouchableOpacity>
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>Don't have an account? </Text>
-        <Link href="/(auth)/register" asChild>
-          <TouchableOpacity>
-            <Text style={styles.registerText}>Sign Up</Text>
-          </TouchableOpacity>
+        <Link href="/(auth)/register">
+          <Text style={styles.registerText}>Sign Up</Text>
         </Link>
       </View>
     </KeyboardAvoidingView>
@@ -141,20 +155,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 20,
     justifyContent: 'center',
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 10,
-  },
-  appName: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#4a90e2',
   },
   title: {
     fontSize: 28,
@@ -187,14 +187,6 @@ const styles = StyleSheet.create({
   eyeIcon: {
     padding: 10,
   },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-  },
-  forgotPasswordText: {
-    color: '#4a90e2',
-    fontSize: 14,
-  },
   loginButton: {
     backgroundColor: '#4a90e2',
     borderRadius: 12,
@@ -216,15 +208,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  errorText: {
-    color: '#e74c3c',
-    marginBottom: 16,
-    textAlign: 'center',
+  forgotPassword: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  forgotPasswordText: {
+    color: '#4a90e2',
+    fontSize: 16,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: 30,
   },
   footerText: {
     color: '#666',
@@ -234,5 +229,10 @@ const styles = StyleSheet.create({
     color: '#4a90e2',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  errorText: {
+    color: '#e74c3c',
+    marginBottom: 16,
+    textAlign: 'center',
   },
 });
