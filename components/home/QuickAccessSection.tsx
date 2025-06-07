@@ -33,7 +33,7 @@ const appFeatures = [
     description: 'Manage your health information in one place',
     icon: 'person',
     color: '#F5A623',
-    route: '/(tabs)/profile'
+    route: '/(tabs)/health-profile'
   },
   {
     id: '4',

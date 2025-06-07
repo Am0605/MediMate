@@ -5,10 +5,10 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 
 // Import health-focused profile components
-import HealthHeader from '@/components/profile/HealthHeader';
-import HealthPersonalInfo from '@/components/profile/HealthPersonalInfo';
-import HealthOverview from '@/components/profile/HealthOverview';
-import HealthEntries from '@/components/profile/HealthEntries';
+import HealthHeader from '@/components/health-profile/HealthHeader';
+import HealthPersonalInfo from '@/components/health-profile/HealthPersonalInfo';
+import HealthOverview from '@/components/health-profile/HealthOverview';
+import HealthEntries from '@/components/health-profile/HealthEntries';
 
 // Mock data hook
 import { useHealthProfileData } from '@/hooks/useHealthProfileData';
