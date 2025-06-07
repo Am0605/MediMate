@@ -14,6 +14,88 @@ export default function HealthPersonalInfo({ healthProfile }: HealthPersonalInfo
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   
+  const styles = StyleSheet.create({
+    container: {
+      margin: 16,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+    infoGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginBottom: 12,
+    },
+    infoItem: {
+      width: '31%',
+      aspectRatio: 1,
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: isDark ? '#0A1929' : '#FFFFFF',
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    iconContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    infoText: {
+      alignItems: 'center',
+    },
+    infoLabel: {
+      fontSize: 12,
+      marginBottom: 4,
+      textAlign: 'center',
+    },
+    infoValue: {
+      fontSize: 14,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    section: {
+      marginTop: 20,
+      paddingBottom: 24,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? '#1E3A5F' : '#E5E7EB',
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      marginBottom: 12,
+    },
+    tagContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    tag: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+    },
+    tagText: {
+      fontSize: 12,
+      fontWeight: '500',
+    },
+  });
+
   const calculateAge = (birthDate: string) => {
     const today = new Date();
     const birth = new Date(birthDate);
@@ -103,7 +185,7 @@ export default function HealthPersonalInfo({ healthProfile }: HealthPersonalInfo
   const allergies = healthProfile.allergies || [];
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].card }]}>
+    <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Personal Health Information</Text>
         <TouchableOpacity>
@@ -115,7 +197,7 @@ export default function HealthPersonalInfo({ healthProfile }: HealthPersonalInfo
         {healthInfoItems.map((item, index) => (
           <View key={index} style={styles.infoItem}>
             <View style={[styles.iconContainer, { backgroundColor: item.color + '20' }]}>
-              <Ionicons name={item.icon as any} size={20} color={item.color} />
+              <Ionicons name={item.icon as any} size={24} color={item.color} />
             </View>
             <View style={styles.infoText}>
               <Text style={[styles.infoLabel, { color: isDark ? '#A0B4C5' : '#666666' }]}>
@@ -163,82 +245,3 @@ export default function HealthPersonalInfo({ healthProfile }: HealthPersonalInfo
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    margin: 16,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 3,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  infoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '48%',
-    marginBottom: 16,
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  infoText: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  section: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  tagContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  tag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  tagText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-});
