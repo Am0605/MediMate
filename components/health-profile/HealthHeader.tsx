@@ -14,7 +14,11 @@ export default function HealthHeader() {
   };
   
   return (
-    <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
+    <View style={[styles.header, { 
+      backgroundColor: Colors[colorScheme].background,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(0,0,0,0.05)',
+    }]}>
       <View style={styles.titleContainer}>
         <Text style={styles.headerTitle}>Health Profile</Text>
         <Text style={[styles.headerSubtitle, { color: Colors[colorScheme === 'dark' ? 'dark' : 'light'].tabIconDefault }]}>

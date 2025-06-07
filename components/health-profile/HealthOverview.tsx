@@ -46,24 +46,28 @@ export default function HealthOverview({ healthStats }: HealthOverviewProps) {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].card }]}>
+    <View style={styles.container}>
       <Text style={styles.title}>Health Overview</Text>
       
-      <View style={styles.statsGrid}>
+      <View style={styles.statsContainer}>
         {stats.map((stat, index) => (
-          <View key={index} style={styles.statItem}>
-            <View style={[styles.statIconContainer, { backgroundColor: stat.color + '20' }]}>
-              <Ionicons name={stat.icon as any} size={24} color={stat.color} />
+          <View key={index} style={[styles.statCard, { backgroundColor: isDark ? '#0A1929' : '#FFFFFF' }]}>
+            <View style={styles.cardContent}>
+              <View style={[styles.statIconContainer, { backgroundColor: stat.color + '20' }]}>
+                <Ionicons name={stat.icon as any} size={28} color={stat.color} />
+              </View>
+              <View style={styles.statContent}>
+                <Text style={[styles.statLabel, { color: isDark ? '#A0B4C5' : '#666666' }]}>
+                  {stat.label}
+                </Text>
+                <Text style={[styles.statValue, { color: Colors[colorScheme].text }]}>
+                  {stat.value}
+                </Text>
+                <Text style={[styles.statSubtitle, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
+                  {stat.subtitle}
+                </Text>
+              </View>
             </View>
-            <Text style={[styles.statValue, { color: Colors[colorScheme].text }]}>
-              {stat.value}
-            </Text>
-            <Text style={[styles.statLabel, { color: isDark ? '#A0B4C5' : '#666666' }]}>
-              {stat.label}
-            </Text>
-            <Text style={[styles.statSubtitle, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
-              {stat.subtitle}
-            </Text>
           </View>
         ))}
       </View>
@@ -111,29 +115,32 @@ export default function HealthOverview({ healthStats }: HealthOverviewProps) {
 const styles = StyleSheet.create({
   container: {
     margin: 16,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 3,
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
   },
-  statsGrid: {
+  statsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 12,
   },
-  statItem: {
+  statCard: {
     width: '48%',
-    alignItems: 'center',
+    aspectRatio: 1,
     padding: 16,
-    marginBottom: 8,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  cardContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statIconContainer: {
     width: 56,
@@ -141,22 +148,24 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
+  },
+  statContent: {
+    alignItems: 'center',
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginVertical: 8,
   },
   statLabel: {
-    fontSize: 12,
-    textAlign: 'center',
+    fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
   statSubtitle: {
-    fontSize: 10,
+    fontSize: 12,
     textAlign: 'center',
-    marginTop: 2,
   },
   activitySection: {
     marginTop: 20,
