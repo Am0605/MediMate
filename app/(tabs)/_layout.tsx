@@ -90,47 +90,73 @@ function ProfileIcon() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [userInitials, setUserInitials] = useState('U');
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const router = useRouter();
   const colorScheme = useColorScheme();
 
   useEffect(() => {
     fetchUserData();
+  }, []);
 
-    // Listen for profile changes
-    const channel = supabase
-      .channel('tab-profile-changes')
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    console.log('🎯 Setting up real-time subscriptions for user:', currentUserId);
+
+    // Subscribe to database changes
+    const profileChannel = supabase
+      .channel('tab-profile-db-changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'profiles',
+          filter: `id=eq.${currentUserId}`,
         },
         (payload) => {
-          console.log('🖼️ Tab Avatar Change:', payload);
-          fetchUserData(); // Refresh when profile changes
+          console.log('📋 Tab ProfileIcon - DB Change:', payload);
+          fetchUserData(); // Refresh all data when profile changes
         }
       )
       .subscribe();
 
+    // Subscribe to broadcast updates
+    const broadcastChannel = supabase
+      .channel('tab-profile-broadcasts')
+      .on('broadcast', { event: 'profile_updated' }, (payload) => {
+        console.log('📡 Tab ProfileIcon - Broadcast received:', payload);
+        if (payload.payload.user_id === currentUserId) {
+          setAvatarUrl(payload.payload.avatar_url);
+          // Update initials if name changed
+          if (payload.payload.full_name) {
+            const names: string[] = payload.payload.full_name.split(' ').filter((name: string) => name.length > 0);
+            let initials = 'U';
+            if (names.length >= 2) {
+              initials = names[0].charAt(0).toUpperCase() + names[1].charAt(0).toUpperCase();
+            } else if (names.length === 1) {
+              initials = names[0].charAt(0).toUpperCase();
+            }
+            setUserInitials(initials);
+          }
+        }
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      console.log('🧹 Cleaning up subscriptions');
+      supabase.removeChannel(profileChannel);
+      supabase.removeChannel(broadcastChannel);
     };
-  }, []);
+  }, [currentUserId]);
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
-      if (userError) {
-        console.error('Error fetching user:', userError);
-        return;
-      }
-
-      if (!user || !user.id) {
+      if (userError || !user?.id) {
         console.log('No authenticated user found');
-        setUserInitials('U');
         return;
       }
 
@@ -138,11 +164,11 @@ function ProfileIcon() {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(user.id)) {
         console.error('Invalid user ID format:', user.id);
-        setUserInitials(user.email?.charAt(0).toUpperCase() || 'U');
         return;
       }
 
-      console.log('Fetching profile for user ID:', user.id);
+      setCurrentUserId(user.id);
+      console.log('👤 Fetching profile for user:', user.id);
       
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -150,33 +176,10 @@ function ProfileIcon() {
         .eq('id', user.id)
         .single();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // No profile found - create initials from user data
-          console.log('No profile found, using user metadata');
-          const userMetadata = user.user_metadata || {};
-          const fullName = userMetadata.full_name || user.email?.split('@')[0] || '';
-          
-          let initials = 'U';
-          if (fullName) {
-            const names: string[] = fullName.split(' ').filter((name: string) => name.length > 0);
-            if (names.length >= 2) {
-              initials = names[0].charAt(0).toUpperCase() + names[1].charAt(0).toUpperCase();
-            } else if (names.length === 1) {
-              initials = names[0].charAt(0).toUpperCase();
-            }
-          } else if (user.email) {
-            initials = user.email.charAt(0).toUpperCase();
-          }
-          
-          setUserInitials(initials);
-          setAvatarUrl(null);
-        } else {
-          console.error('Error fetching profile:', error);
-          // Fallback to email initial
-          setUserInitials(user.email?.charAt(0).toUpperCase() || 'U');
-          setAvatarUrl(null);
-        }
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+        setUserInitials(user.email?.charAt(0).toUpperCase() || 'U');
+        setAvatarUrl(null);
         return;
       }
 
@@ -206,18 +209,17 @@ function ProfileIcon() {
         }
         
         setUserInitials(initials);
-        console.log('Profile loaded successfully:', { 
+        console.log('✅ Tab Profile loaded:', { 
           hasAvatar: !!profile.avatar_url, 
-          initials 
+          initials,
+          avatarUrl: profile.avatar_url 
         });
       } else {
-        // No profile data but no error
         setUserInitials(user.email?.charAt(0).toUpperCase() || 'U');
         setAvatarUrl(null);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
-      // Fallback to default
       setUserInitials('U');
       setAvatarUrl(null);
     } finally {
