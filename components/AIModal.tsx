@@ -104,6 +104,21 @@ export default function AIModal({ visible, onClose }: AIModalProps) {
     onClose();
   };
 
+  const handleSymptomChecker = () => {
+    onClose();
+    router.push('/(ai)/symptom-checker');
+  };
+
+  const handleMedSimplify = () => {
+    onClose();
+    router.push('/(ai)/medsimplify');
+  };
+
+  const handleVitalVoice = () => {
+    onClose();
+    router.push('/(ai)/vital-voice');
+  };
+
   if (!visible) return null;
 
   return (
