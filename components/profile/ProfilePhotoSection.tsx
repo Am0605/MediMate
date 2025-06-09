@@ -12,11 +12,23 @@ interface ProfilePhotoSectionProps {
 export default function ProfilePhotoSection({ avatarUrl, onPickImage }: ProfilePhotoSectionProps) {
   const colorScheme = useColorScheme();
 
+  const handlePickImage = async () => {
+    await onPickImage();
+    // Force a small delay to ensure the UI updates
+    setTimeout(() => {
+      console.log('🔄 Avatar UI should refresh now');
+    }, 100);
+  };
+
   return (
     <View style={[styles.photoSection, { backgroundColor: Colors[colorScheme].card }]}>
-      <TouchableOpacity onPress={onPickImage} style={styles.photoContainer}>
+      <TouchableOpacity onPress={handlePickImage} style={styles.photoContainer}>
         {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={styles.profilePhoto} />
+          <Image
+            source={{ uri: avatarUrl }}
+            style={styles.profilePhoto}
+            key={avatarUrl} // Force re-render when URL changes
+          />
         ) : (
           <View style={[styles.profilePhoto, styles.defaultPhoto]}>
             <Ionicons name="person" size={50} color="#fff" />

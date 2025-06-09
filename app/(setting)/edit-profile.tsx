@@ -164,28 +164,46 @@ export default function EditProfile() {
         throw new Error('No user data found');
       }
 
+      const profileData = {
+        id: userData.id,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        full_name: `${firstName.trim()} ${lastName.trim()}`,
+        email: userData.email,
+        phone: phone || null,
+        date_of_birth: dateOfBirth.toISOString().split('T')[0],
+        gender: gender || null,
+        height: height || null,
+        weight: weight || null,
+        blood_type: bloodType || null,
+        emergency_contact_name: emergencyContactName || null,
+        emergency_contact_phone: emergencyContactPhone || null,
+        emergency_contact_relationship: emergencyContactRelationship || null,
+        avatar_url: avatarUrl || null,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error: updateError } = await supabase
         .from('profiles')
-        .upsert({
-          id: userData.id,
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          full_name: `${firstName.trim()} ${lastName.trim()}`,
-          email: userData.email,
-          phone: phone || null,
-          date_of_birth: dateOfBirth.toISOString().split('T')[0],
-          gender: gender || null,
-          height: height || null,
-          weight: weight || null,
-          blood_type: bloodType || null,
-          emergency_contact_name: emergencyContactName || null,
-          emergency_contact_phone: emergencyContactPhone || null,
-          emergency_contact_relationship: emergencyContactRelationship || null,
-          avatar_url: avatarUrl || null,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(profileData);
 
       if (updateError) throw updateError;
+
+      // Broadcast the profile update to all listening components
+      await supabase
+        .channel('profile-updates')
+        .send({
+          type: 'broadcast',
+          event: 'profile_updated',
+          payload: {
+            user_id: userData.id,
+            avatar_url: avatarUrl,
+            full_name: `${firstName.trim()} ${lastName.trim()}`,
+            updated_at: new Date().toISOString()
+          }
+        });
+
+      console.log('✅ Profile updated and broadcasted');
 
       Alert.alert(
         'Success',

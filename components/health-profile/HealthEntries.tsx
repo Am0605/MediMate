@@ -151,7 +151,7 @@ export default function HealthEntries({ entries }: HealthEntriesProps) {
             {item.description}
           </Text>
           <Text style={[styles.entryDate, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
-            {formatDate(item.createdAt)}
+            {formatDate(item.created_at)}
           </Text>
         </View>
         

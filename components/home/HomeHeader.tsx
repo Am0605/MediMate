@@ -22,9 +22,9 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
   useEffect(() => {
     fetchUserAvatar();
     
-    // Listen for profile changes
-    const channel = supabase
-      .channel('profile-avatar-changes')
+    // Subscribe to profile changes via database changes
+    const profileChannel = supabase
+      .channel('home-header-profile-changes')
       .on(
         'postgres_changes',
         {
@@ -34,7 +34,7 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
           filter: `id=eq.${userInfo.id}`,
         },
         (payload) => {
-          console.log('🖼️ Avatar Change:', payload);
+          console.log('🏠 Home Header - Profile DB Change:', payload);
           if (payload.new && 'avatar_url' in payload.new) {
             setAvatarUrl(payload.new.avatar_url);
           }
@@ -42,8 +42,20 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
       )
       .subscribe();
 
+    // Subscribe to broadcast updates
+    const broadcastChannel = supabase
+      .channel('home-header-broadcasts')
+      .on('broadcast', { event: 'profile_updated' }, (payload) => {
+        console.log('📡 Home Header - Broadcast received:', payload);
+        if (payload.payload.user_id === userInfo.id) {
+          setAvatarUrl(payload.payload.avatar_url);
+        }
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(profileChannel);
+      supabase.removeChannel(broadcastChannel);
     };
   }, [userInfo.id]);
 
@@ -58,25 +70,25 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
         console.error('Error fetching user:', userError);
         return;
       }
-
+  
       if (!user || !user.id) {
         console.log('No authenticated user found');
         return;
       }
-
+  
       // Validate UUID format
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(user.id)) {
         console.error('Invalid user ID format:', user.id);
         return;
       }
-
+  
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('avatar_url')
         .eq('id', user.id)
         .single();
-
+  
       if (error) {
         if (error.code !== 'PGRST116') { // PGRST116 = no rows found
           console.error('Error fetching avatar:', error);
