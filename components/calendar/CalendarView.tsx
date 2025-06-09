@@ -4,7 +4,7 @@ import { View } from '@/components/Themed';
 import { Calendar as RNCalendar, LocaleConfig } from 'react-native-calendars';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { Appointment } from '@/types/calendar';
+import { AppointmentDisplay } from '@/types/calendar'; // Changed from Appointment
 
 // Configure calendar locale
 LocaleConfig.locales['en'] = {
@@ -21,10 +21,16 @@ LocaleConfig.defaultLocale = 'en';
 type CalendarViewProps = {
   selectedDate: string;
   setSelectedDate: (date: string) => void;
-  appointments: Appointment[];
+  appointments: AppointmentDisplay[]; // Changed type
+  loading?: boolean;
 };
 
-export default function CalendarView({ selectedDate, setSelectedDate, appointments }: CalendarViewProps) {
+export default function CalendarView({ 
+  selectedDate, 
+  setSelectedDate, 
+  appointments,
+  loading = false 
+}: CalendarViewProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -40,24 +46,28 @@ export default function CalendarView({ selectedDate, setSelectedDate, appointmen
     
     // Mark dates with appointments
     appointments.forEach(appointment => {
-      if (dates[appointment.date]) {
+      const appointmentDate = appointment.date; // Now this exists in AppointmentDisplay
+      
+      if (!appointmentDate) return; // Skip if no date
+      
+      if (dates[appointmentDate]) {
         // If date already marked (including selected date)
-        if (appointment.date === selectedDate) {
-          dates[appointment.date] = {
-            ...dates[appointment.date],
+        if (appointmentDate === selectedDate) {
+          dates[appointmentDate] = {
+            ...dates[appointmentDate],
             marked: true,
-            dotColor: '#FF3B30',
+            dotColor: '#FF3B30', // Red dot for selected date with appointments
           };
         } else {
-          dates[appointment.date] = {
-            ...dates[appointment.date],
+          dates[appointmentDate] = {
+            ...dates[appointmentDate],
             marked: true,
             dotColor: Colors[colorScheme].tint,
           };
         }
       } else {
         // New date with appointment
-        dates[appointment.date] = {
+        dates[appointmentDate] = {
           marked: true,
           dotColor: Colors[colorScheme].tint,
         };
@@ -74,26 +84,46 @@ export default function CalendarView({ selectedDate, setSelectedDate, appointmen
     textSectionTitleColor: Colors[colorScheme].text,
     selectedDayBackgroundColor: Colors[colorScheme].tint,
     selectedDayTextColor: '#ffffff',
-    todayTextColor: '#FF3B30',
-    dayTextColor: isDark ? '#FF0000' : '#2C3E50',
+    todayTextColor: Colors[colorScheme].tint,
+    dayTextColor: Colors[colorScheme].text,
     textDisabledColor: isDark ? '#555555' : '#d9e1e8',
     dotColor: Colors[colorScheme].tint,
     selectedDotColor: '#ffffff',
     arrowColor: Colors[colorScheme].tint,
-    monthTextColor: isDark ? '#E0E0E0' : '#2C3E50',
+    monthTextColor: Colors[colorScheme].text,
     indicatorColor: Colors[colorScheme].tint,
     textDayFontSize: 16,
     textMonthFontSize: 18,
-    textDayHeaderFontSize: 14
+    textDayHeaderFontSize: 14,
+    'stylesheet.calendar.header': {
+      week: {
+        marginTop: 5,
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+      },
+    },
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].card }]}>
+    <View style={[
+      styles.container, 
+      { 
+        backgroundColor: Colors[colorScheme].card,
+        opacity: loading ? 0.7 : 1 
+      }
+    ]}>
       <RNCalendar
         markedDates={markedDates}
-        onDayPress={(day) => setSelectedDate(day.dateString)}
+        onDayPress={(day) => {
+          if (!loading) {
+            setSelectedDate(day.dateString);
+          }
+        }}
         theme={calendarTheme}
-        enableSwipeMonths
+        enableSwipeMonths={!loading}
+        hideExtraDays={true}
+        firstDay={1} // Start week on Monday
+        showWeekNumbers={false}
       />
     </View>
   );
