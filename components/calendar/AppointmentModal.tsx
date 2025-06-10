@@ -1,28 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Modal, 
-  TouchableOpacity, 
-  ScrollView, 
-  TextInput, 
-  Alert,
-  Platform 
-} from 'react-native';
+import { Modal, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Appointment } from '@/types/calendar';
+import { AppointmentDisplay } from '@/types/calendar';
 import * as Haptics from 'expo-haptics';
+
+import AppointmentForm from './AppointmentForm';
+import DateTimeSelector from './DateTimeSelector';
+import ReadOnlyView from './ReadOnlyView';
+import InlinePickers from './InlinePickers';
+import { styles } from './AppointmentModal.styles';
 
 type AppointmentModalProps = {
   visible: boolean;
-  editingAppointment: Appointment | null;
+  editingAppointment: AppointmentDisplay | null;
   selectedDate: string;
   onClose: () => void;
   onSave: (appointmentData: any) => void;
   onDelete: (appointmentId: string) => void;
+  loading?: boolean;
 };
 
 export default function AppointmentModal({
@@ -31,10 +29,10 @@ export default function AppointmentModal({
   selectedDate,
   onClose,
   onSave,
-  onDelete
+  onDelete,
+  loading = false
 }: AppointmentModalProps) {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
   // Form state
   const [formTitle, setFormTitle] = useState('');
@@ -42,7 +40,6 @@ export default function AppointmentModal({
   const [formTime, setFormTime] = useState(new Date());
   const [formLocation, setFormLocation] = useState('');
   const [formDoctorName, setFormDoctorName] = useState('');
-  const [formDoctorSpecialty, setFormDoctorSpecialty] = useState('');
   const [formNotes, setFormNotes] = useState('');
 
   // Date/time picker states
@@ -53,59 +50,90 @@ export default function AppointmentModal({
   useEffect(() => {
     if (visible) {
       if (editingAppointment) {
-        // Fill form with appointment data
         setFormTitle(editingAppointment.title);
         setFormLocation(editingAppointment.location || '');
-        setFormDoctorName(editingAppointment.doctorName || '');
-        setFormDoctorSpecialty(editingAppointment.doctorSpecialty || '');
+        setFormDoctorName(editingAppointment.doctorName || editingAppointment.doctor_name || '');
         setFormNotes(editingAppointment.notes || '');
 
-        // Parse date
-        const [year, month, day] = editingAppointment.date.split('-').map(n => parseInt(n, 10));
-        const dateObj = new Date(year, month - 1, day);
-        setFormDate(dateObj);
+        if (editingAppointment.date) {
+          const [year, month, day] = editingAppointment.date.split('-').map(n => parseInt(n, 10));
+          
+          // Create date object using local timezone
+          const dateObj = new Date(year, month - 1, day);
+          setFormDate(dateObj);
 
-        // Parse time
-        const [hours, minutes] = editingAppointment.time.split(':').map(n => parseInt(n, 10));
-        const timeObj = new Date();
-        timeObj.setHours(hours, minutes, 0, 0);
-        setFormTime(timeObj);
+          if (editingAppointment.time) {
+            const [hours, minutes] = editingAppointment.time.split(':').map(n => parseInt(n, 10));
+            
+            // Create time object using local timezone
+            const timeObj = new Date(year, month - 1, day, hours, minutes, 0, 0);
+            setFormTime(timeObj);
+            
+            console.log('🔄 Loaded existing appointment time (local):', timeObj.toString());
+          } else {
+            const defaultTime = new Date(year, month - 1, day, 9, 0, 0, 0);
+            setFormTime(defaultTime);
+          }
+        }
       } else {
-        // Reset form for new appointment
+        // New appointment
         setFormTitle('');
         setFormLocation('');
         setFormDoctorName('');
-        setFormDoctorSpecialty('');
         setFormNotes('');
-        setFormTime(new Date());
 
-        // Use selected date
         const [year, month, day] = selectedDate.split('-').map(n => parseInt(n, 10));
+        
+        // Create date object using local timezone
         const selectedDateObj = new Date(year, month - 1, day);
         setFormDate(selectedDateObj);
+
+        // Set default time to 9:00 AM using local timezone
+        const defaultTime = new Date(year, month - 1, day, 9, 0, 0, 0);
+        setFormTime(defaultTime);
+        
+        console.log('📅 New appointment date (local):', selectedDateObj.toDateString());
+        console.log('🕐 Default time (local):', defaultTime.toString());
       }
     }
   }, [visible, editingAppointment, selectedDate]);
 
+  // Update the handleSave function to save as local time without timezone:
   const handleSave = () => {
     if (!formTitle.trim()) {
       Alert.alert('Error', 'Please enter an appointment title');
       return;
     }
 
-    const formattedDate = formDate.toISOString().split('T')[0];
-    const formattedTime = `${String(formTime.getHours()).padStart(2, '0')}:${String(formTime.getMinutes()).padStart(2, '0')}`;
+    // Format date using local timezone
+    const year = formDate.getFullYear();
+    const month = String(formDate.getMonth() + 1).padStart(2, '0');
+    const day = String(formDate.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+    
+    // Format time using local timezone
+    const hours = formTime.getHours();
+    const minutes = formTime.getMinutes();
+    const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+    // Create timestamp without timezone (treat as local time)
+    const startTimeLocal = `${formattedDate}T${formattedTime}:00`;
+
+    console.log('💾 Saving appointment:');
+    console.log('📅 Local start_time (no TZ):', startTimeLocal);
 
     const appointmentData = {
       title: formTitle.trim(),
-      date: formattedDate,
-      time: formattedTime,
-      location: formLocation.trim(),
-      doctorName: formDoctorName.trim(),
-      doctorSpecialty: formDoctorSpecialty.trim(),
-      notes: formNotes.trim(),
+      start_time: startTimeLocal, // Save without timezone
+      location: formLocation.trim() || null,
+      doctor_name: formDoctorName.trim() || null,
+      notes: formNotes.trim() || null,
+      appointment_type: 'doctor_visit' as const,
+      status: 'scheduled' as const,
     };
 
+    console.log('📋 Final appointment data:', appointmentData);
+    
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onSave(appointmentData);
   };
@@ -130,26 +158,139 @@ export default function AppointmentModal({
     }
   };
 
-  // Date/time picker handlers
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setFormDate(selectedDate);
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    console.log('📅 Date change event:', event.type);
+    
+    if (event.type === 'dismissed') {
+      // User cancelled
+      setShowDatePicker(false);
+      return;
     }
+    
+    if (selectedDate) {
+      const localDate = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate()
+      );
+      
+      setFormDate(localDate);
+      
+      const newTime = new Date(
+        localDate.getFullYear(),
+        localDate.getMonth(),
+        localDate.getDate(),
+        formTime.getHours(),
+        formTime.getMinutes(),
+        0,
+        0
+      );
+      setFormTime(newTime);
+      
+      // Auto-close after successful selection
+      if (Platform.OS === 'android') {
+        setShowDatePicker(false);
+      }
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedTime?: Date) => {
+    console.log('🕐 Time change event:', event.type);
+    
+    if (event.type === 'dismissed') {
+      // User cancelled
+      setShowTimePicker(false);
+      return;
+    }
+    
+    if (selectedTime) {
+      const newTime = new Date(
+        formDate.getFullYear(),
+        formDate.getMonth(),
+        formDate.getDate(),
+        selectedTime.getHours(),
+        selectedTime.getMinutes(),
+        0,
+        0
+      );
+      setFormTime(newTime);
+      
+      // Auto-close after successful selection
+      if (Platform.OS === 'android') {
+        setShowTimePicker(false);
+      }
+    }
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    console.log('📅 Date picker event:', event.type, selectedDate);
+    
+    if (selectedDate) {
+      // Create a new date using local timezone (no UTC conversion)
+      const localDate = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate()
+      );
+      
+      setFormDate(localDate);
+      
+      // Update the time to use the new date but keep the same hours/minutes
+      const newTime = new Date(
+        localDate.getFullYear(),
+        localDate.getMonth(),
+        localDate.getDate(),
+        formTime.getHours(),
+        formTime.getMinutes(),
+        0,
+        0
+      );
+      setFormTime(newTime);
+      
+      console.log('📅 Date changed to (local):', localDate.toDateString());
+      console.log('🕐 Time updated to (local):', newTime.toString());
+    }
+    
+    // Don't auto-close here - let InlinePickers handle it
   };
 
   const onTimeChange = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(false);
+    console.log('🕐 Time picker event:', event.type, selectedTime);
+    
     if (selectedTime) {
-      setFormTime(selectedTime);
+      // Create new time using the form date but with the selected time (local timezone)
+      const newTime = new Date(
+        formDate.getFullYear(),
+        formDate.getMonth(),
+        formDate.getDate(),
+        selectedTime.getHours(),
+        selectedTime.getMinutes(),
+        0,
+        0
+      );
+      setFormTime(newTime);
+      
+      console.log('🕐 Time changed to (local):', newTime.toString());
     }
+    
+    // Don't auto-close here - let InlinePickers handle it
   };
 
-  // Format functions
   const formatDisplayDate = (date: Date) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    
+    const dateStr = date.toLocaleDateString();
+    const todayStr = today.toLocaleDateString();
+    const tomorrowStr = tomorrow.toLocaleDateString();
+    
+    if (dateStr === todayStr) return 'Today';
+    if (dateStr === tomorrowStr) return 'Tomorrow';
+    
     return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
+      weekday: 'short',
+      month: 'short', 
       day: 'numeric' 
     });
   };
@@ -161,6 +302,9 @@ export default function AppointmentModal({
       hour12: true 
     });
   };
+
+  const isCompleted = editingAppointment?.status === 'completed';
+  const isNewAppointment = !editingAppointment;
 
   return (
     <Modal
@@ -176,263 +320,97 @@ export default function AppointmentModal({
             <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
               {editingAppointment ? 'Edit Appointment' : 'New Appointment'}
             </Text>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={onClose} disabled={loading}>
               <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
             </TouchableOpacity>
           </View>
 
           {/* Form */}
           <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-            {/* Title */}
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Title *</Text>
-            <TextInput
-              style={[
-                styles.textInput,
-                { 
-                  color: Colors[colorScheme].text,
-                  backgroundColor: isDark ? '#132F4C' : '#F5F9FC',
-                  borderColor: isDark ? '#1E3A5F' : '#E0E0E0'
-                }
-              ]}
-              placeholder="Appointment Title"
-              placeholderTextColor={isDark ? '#A0B4C5' : '#AAAAAA'}
-              value={formTitle}
-              onChangeText={setFormTitle}
-            />
+            {isCompleted ? (
+              <ReadOnlyView
+                formTitle={formTitle}
+                formLocation={formLocation}
+                formDoctorName={formDoctorName}
+                formNotes={formNotes}
+              />
+            ) : (
+              <>
+                <AppointmentForm
+                  formTitle={formTitle}
+                  setFormTitle={setFormTitle}
+                  formLocation={formLocation}
+                  setFormLocation={setFormLocation}
+                  formDoctorName={formDoctorName}
+                  setFormDoctorName={setFormDoctorName}
+                  formNotes={formNotes}
+                  setFormNotes={setFormNotes}
+                  loading={loading}
+                />
 
-            {/* Date */}
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Date</Text>
-            <TouchableOpacity 
-              style={[
-                styles.dateTimePicker,
-                { 
-                  backgroundColor: isDark ? '#132F4C' : '#F5F9FC',
-                  borderColor: isDark ? '#1E3A5F' : '#E0E0E0'
-                }
-              ]}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Ionicons name="calendar-outline" size={20} color={isDark ? '#A0B4C5' : '#757575'} />
-              <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
-                {formatDisplayDate(formDate)}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Time */}
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Time</Text>
-            <TouchableOpacity 
-              style={[
-                styles.dateTimePicker,
-                { 
-                  backgroundColor: isDark ? '#132F4C' : '#F5F9FC',
-                  borderColor: isDark ? '#1E3A5F' : '#E0E0E0'
-                }
-              ]}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Ionicons name="time-outline" size={20} color={isDark ? '#A0B4C5' : '#757575'} />
-              <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
-                {formatDisplayTime(formTime)}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Location */}
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Location</Text>
-            <TextInput
-              style={[
-                styles.textInput,
-                { 
-                  color: Colors[colorScheme].text,
-                  backgroundColor: isDark ? '#132F4C' : '#F5F9FC',
-                  borderColor: isDark ? '#1E3A5F' : '#E0E0E0'
-                }
-              ]}
-              placeholder="Location"
-              placeholderTextColor={isDark ? '#A0B4C5' : '#AAAAAA'}
-              value={formLocation}
-              onChangeText={setFormLocation}
-            />
-
-            {/* Doctor Name */}
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Doctor Name</Text>
-            <TextInput
-              style={[
-                styles.textInput,
-                { 
-                  color: Colors[colorScheme].text,
-                  backgroundColor: isDark ? '#132F4C' : '#F5F9FC',
-                  borderColor: isDark ? '#1E3A5F' : '#E0E0E0'
-                }
-              ]}
-              placeholder="Doctor Name"
-              placeholderTextColor={isDark ? '#A0B4C5' : '#AAAAAA'}
-              value={formDoctorName}
-              onChangeText={setFormDoctorName}
-            />
-
-            {/* Doctor Specialty */}
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Specialty</Text>
-            <TextInput
-              style={[
-                styles.textInput,
-                { 
-                  color: Colors[colorScheme].text,
-                  backgroundColor: isDark ? '#132F4C' : '#F5F9FC',
-                  borderColor: isDark ? '#1E3A5F' : '#E0E0E0'
-                }
-              ]}
-              placeholder="Doctor Specialty"
-              placeholderTextColor={isDark ? '#A0B4C5' : '#AAAAAA'}
-              value={formDoctorSpecialty}
-              onChangeText={setFormDoctorSpecialty}
-            />
-
-            {/* Notes */}
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Notes</Text>
-            <TextInput
-              style={[
-                styles.textInputMultiline,
-                { 
-                  color: Colors[colorScheme].text,
-                  backgroundColor: isDark ? '#132F4C' : '#F5F9FC',
-                  borderColor: isDark ? '#1E3A5F' : '#E0E0E0'
-                }
-              ]}
-              placeholder="Notes"
-              placeholderTextColor={isDark ? '#A0B4C5' : '#AAAAAA'}
-              value={formNotes}
-              onChangeText={setFormNotes}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
+                <DateTimeSelector
+                  isNewAppointment={isNewAppointment}
+                  isCompleted={isCompleted}
+                  formDate={formDate}
+                  formTime={formTime}
+                  onDatePress={() => setShowDatePicker(true)}
+                  onTimePress={() => setShowTimePicker(true)}
+                  loading={loading}
+                  formatDisplayDate={formatDisplayDate}
+                  formatDisplayTime={formatDisplayTime}
+                />
+              </>
+            )}
           </ScrollView>
+
+          {/* Inline Pickers */}
+          <InlinePickers
+            showDatePicker={showDatePicker}
+            showTimePicker={showTimePicker}
+            formDate={formDate}
+            formTime={formTime}
+            onDateChange={handleDateChange}  // Use the new handlers
+            onTimeChange={handleTimeChange}  // Use the new handlers
+            onCloseDatePicker={() => setShowDatePicker(false)}
+            onCloseTimePicker={() => setShowTimePicker(false)}
+            loading={loading}
+          />
 
           {/* Actions */}
           <View style={styles.modalActions}>
-            {editingAppointment && (
+            {isCompleted ? (
               <TouchableOpacity 
-                style={[styles.deleteButton, { backgroundColor: '#FF3B30' }]}
-                onPress={handleDelete}
+                style={[styles.closeButton, { backgroundColor: Colors[colorScheme].tint }]}
+                onPress={onClose}
+                disabled={loading}
               >
-                <Text style={styles.buttonText}>Delete</Text>
+                <Text style={styles.buttonText}>Close</Text>
               </TouchableOpacity>
+            ) : (
+              <>
+                {editingAppointment && (
+                  <TouchableOpacity 
+                    style={[styles.deleteButton, { backgroundColor: '#FF3B30' }]}
+                    onPress={handleDelete}
+                    disabled={loading}
+                  >
+                    <Text style={styles.buttonText}>Delete</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity 
+                  style={[styles.saveButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  onPress={handleSave}
+                  disabled={loading}
+                >
+                  <Text style={styles.buttonText}>
+                    {loading ? 'Saving...' : editingAppointment ? 'Update' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
-            <TouchableOpacity 
-              style={[styles.saveButton, { backgroundColor: Colors[colorScheme].tint }]}
-              onPress={handleSave}
-            >
-              <Text style={styles.buttonText}>Save</Text>
-            </TouchableOpacity>
           </View>
         </View>
-
-        {/* Date/Time Pickers */}
-        {showDatePicker && (
-          <DateTimePicker
-            value={formDate}
-            mode="date"
-            display="default"
-            onChange={onDateChange}
-          />
-        )}
-
-        {showTimePicker && (
-          <DateTimePicker
-            value={formTime}
-            mode="time"
-            display="default"
-            onChange={onTimeChange}
-          />
-        )}
       </View>
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  formContainer: {
-    maxHeight: 400,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-    marginTop: 8,
-  },
-  textInput: {
-    height: 50,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  textInputMultiline: {
-    minHeight: 100,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingTop: 12,
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  dateTimePicker: {
-    height: 50,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dateTimeText: {
-    fontSize: 16,
-    marginLeft: 10,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  deleteButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 8,
-    marginRight: 10,
-  },
-  saveButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
