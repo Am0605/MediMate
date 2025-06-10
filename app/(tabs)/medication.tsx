@@ -9,7 +9,6 @@ import MedicationHeader from '@/components/medication/MedicationHeader';
 import MedicationStats from '@/components/medication/MedicationStats';
 import MedicationList from '@/components/medication/MedicationList';
 import MedicationReminders from '@/components/medication/MedicationReminders';
-import AddMedicationButton from '@/components/medication/AddMedicationButton';
 
 // Mock data import (replace with actual data service later)
 import { useMedicationData } from '@/hooks/useMedicationData';
@@ -17,7 +16,7 @@ import { useMedicationData } from '@/hooks/useMedicationData';
 export default function MedicationScreen() {
   const colorScheme = useColorScheme();
   const [refreshing, setRefreshing] = useState(false);
-  const { medications, reminders, adherenceRate, fetchMedications } = useMedicationData();
+  const { medications, reminders, adherenceRate, fetchMedications, loading, addMedication } = useMedicationData();
 
   // Pull to refresh functionality
   const onRefresh = useCallback(() => {
@@ -29,7 +28,6 @@ export default function MedicationScreen() {
 
   return (
     <View style={styles.container}>
-
       <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.contentContainer}
@@ -37,13 +35,14 @@ export default function MedicationScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <MedicationHeader />
+        <MedicationHeader 
+          onAddMedication={addMedication}
+          loading={loading}
+        />
         <MedicationStats adherenceRate={adherenceRate} />
         <MedicationReminders reminders={reminders} />
         <MedicationList medications={medications} />
       </ScrollView>
-      
-      <AddMedicationButton />
     </View>
   );
 }
@@ -56,6 +55,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 80, 
+    paddingBottom: 40, 
   },
 });

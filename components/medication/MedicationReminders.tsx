@@ -8,9 +8,10 @@ import { ReminderItem } from '@/types/medication';
 
 type MedicationRemindersProps = {
   reminders: ReminderItem[];
+  onMarkTaken?: (logId: string) => void;
 };
 
-export default function MedicationReminders({ reminders }: MedicationRemindersProps) {
+export default function MedicationReminders({ reminders, onMarkTaken }: MedicationRemindersProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   
@@ -53,14 +54,24 @@ export default function MedicationReminders({ reminders }: MedicationRemindersPr
       </View>
       
       {upcomingReminders.map((reminder) => (
-        <ReminderCard key={reminder.id} reminder={reminder} />
+        <ReminderCard 
+          key={reminder.id} 
+          reminder={reminder} 
+          onMarkTaken={onMarkTaken}
+        />
       ))}
     </View>
   );
 }
 
 // Sub-component for reminder cards
-function ReminderCard({ reminder }: { reminder: ReminderItem }) {
+function ReminderCard({ 
+  reminder, 
+  onMarkTaken 
+}: { 
+  reminder: ReminderItem; 
+  onMarkTaken?: (logId: string) => void;
+}) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   
@@ -69,32 +80,74 @@ function ReminderCard({ reminder }: { reminder: ReminderItem }) {
     const date = new Date(timeString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  const handleTakeDose = () => {
+    if (reminder.logId && onMarkTaken) {
+      onMarkTaken(reminder.logId);
+    }
+  };
+
+  const isOverdue = new Date(reminder.time) < new Date() && reminder.status === 'pending';
+  const isTaken = reminder.status === 'taken';
   
   return (
     <View style={[
       styles.reminderCard, 
-      { borderLeftColor: reminder.color || Colors[colorScheme].tint }
+      { 
+        borderLeftColor: reminder.color || Colors[colorScheme].tint,
+        opacity: isTaken ? 0.6 : 1,
+      }
     ]}>
       <View style={styles.reminderTimeContainer}>
-        <Text style={styles.reminderTime}>{formatTime(reminder.time)}</Text>
-        <Text style={[styles.reminderTimeAMPM, { color: isDark ? '#A0B4C5' : '#757575' }]}>
+        <Text style={[
+          styles.reminderTime,
+          { color: isOverdue ? '#F44336' : Colors[colorScheme].text }
+        ]}>
+          {formatTime(reminder.time)}
+        </Text>
+        <Text style={[
+          styles.reminderTimeAMPM, 
+          { color: isDark ? '#A0B4C5' : '#757575' }
+        ]}>
           {new Date(reminder.time).getHours() >= 12 ? 'PM' : 'AM'}
         </Text>
+        {isOverdue && (
+          <Text style={[styles.overdueText, { color: '#F44336' }]}>
+            Overdue
+          </Text>
+        )}
       </View>
       
       <View style={styles.reminderDetails}>
-        <Text style={styles.reminderName}>{reminder.medicationName}</Text>
-        <Text style={[styles.reminderDosage, { color: isDark ? '#A0B4C5' : '#757575' }]}>
+        <Text style={[
+          styles.reminderName,
+          { textDecorationLine: isTaken ? 'line-through' : 'none' }
+        ]}>
+          {reminder.medicationName}
+        </Text>
+        <Text style={[styles.reminderDosage, { color: isDark ? '#A0B4C5' : '#757575' }]}
+        >
           {reminder.dosage} • {reminder.instructions}
         </Text>
+        {isTaken && (
+          <Text style={[styles.takenText, { color: '#4CAF50' }]}
+          >
+            ✓ Taken
+          </Text>
+        )}
       </View>
       
-      <TouchableOpacity style={[
-        styles.takeDoseButton, 
-        { backgroundColor: Colors[colorScheme].tint + '20' }
-      ]}>
-        <Text style={{ color: Colors[colorScheme].tint }}>Take</Text>
-      </TouchableOpacity>
+      {!isTaken && reminder.logId && (
+        <TouchableOpacity 
+          style={[
+            styles.takeDoseButton, 
+            { backgroundColor: Colors[colorScheme].tint + '20' }
+          ]}
+          onPress={handleTakeDose}
+        >
+          <Text style={{ color: Colors[colorScheme].tint }}>Take</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -167,5 +220,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  overdueText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  takenText: {
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: 'bold',
   },
 });
