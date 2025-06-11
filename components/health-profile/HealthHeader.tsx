@@ -31,7 +31,7 @@ export default function HealthHeader() {
           style={[styles.actionButton, { backgroundColor: Colors[colorScheme].tint + '20' }]}
           onPress={handleExportPress}
         >
-          <Ionicons name="download-outline" size={20} color={Colors[colorScheme].tint} />
+          <Ionicons name="sparkles" size={20} color={Colors[colorScheme].tint} />
         </TouchableOpacity>
       </View>
     </View>

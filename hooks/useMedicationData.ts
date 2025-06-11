@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/config/supabase';
 import { MedicationItem, MedicationLog, ReminderItem } from '@/types/medication';
+import { StyleSheet } from 'react-native';
 
 const MEDICATION_COLORS = [
   '#4A90E2', '#50E3C2', '#F5A623', '#D0021B', 
@@ -15,62 +16,266 @@ export function useMedicationData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adherenceRate, setAdherenceRate] = useState(0);
-  
+  const [statsData, setStatsData] = useState({
+    onTime: 0,
+    late: 0,
+    missed: 0,
+    total: 0
+  });
+
   // Helper function to get random color
   const getRandomColor = () => {
     return MEDICATION_COLORS[Math.floor(Math.random() * MEDICATION_COLORS.length)];
   };
 
+  // Helper function to determine status based on timing
+  const determineStatus = (scheduledTime: string, takenTime?: string): 'pending' | 'taken' | 'late' | 'missed' => {
+    const scheduled = new Date(scheduledTime);
+    const now = new Date();
+    
+    if (takenTime) {
+      const taken = new Date(takenTime);
+      const timeDiff = taken.getTime() - scheduled.getTime();
+      const minutesDiff = timeDiff / (1000 * 60);
+      
+      // Consider "late" if taken more than 30 minutes after scheduled time
+      return minutesDiff > 30 ? 'late' : 'taken';
+    }
+    
+    // If not taken and more than 4 hours past scheduled time, mark as missed
+    const timeDiff = now.getTime() - scheduled.getTime();
+    const hoursDiff = timeDiff / (1000 * 60 * 60);
+    
+    if (hoursDiff > 4) {
+      return 'missed';
+    }
+    
+    return 'pending';
+  };
+
+  // Helper function to check if medication should have reminder today based on frequency
+  const shouldHaveReminderToday = (medication: MedicationItem, today: Date): boolean => {
+    const startDate = new Date(medication.start_date || new Date());
+    const daysDifference = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    switch (medication.frequency) {
+      case 'once_daily':
+      case 'twice_daily':
+      case 'three_times_daily':
+      case 'four_times_daily':
+        return true; // Daily medications
+
+      case 'every_other_day':
+        return daysDifference % 2 === 0; // Every other day
+
+      case 'weekly':
+        return daysDifference % 7 === 0; // Same day of week as start date
+
+      case 'as_needed':
+        return false; // No scheduled reminders
+
+      default:
+        return true; // Default to daily
+    }
+  };
+
   // Helper function to generate today's reminders from medications
   const generateTodaysReminders = useCallback((medications: MedicationItem[], logs: MedicationLog[]): ReminderItem[] => {
-    const today = new Date().toISOString().split('T')[0];
+    // Get precise current day boundaries
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    // Use consistent date formatting
+    const todayString = now.toISOString().split('T')[0];
     const reminders: ReminderItem[] = [];
 
     medications.forEach(medication => {
       if (!medication.is_active || !medication.reminder_times) return;
+      
+      // Check if this medication should have reminders today based on frequency
+      if (!shouldHaveReminderToday(medication, now)) {
+        console.log(`📅 Skipping reminders for ${medication.name} - not scheduled for today (${medication.frequency})`);
+        return;
+      }
 
       medication.reminder_times.forEach(timeString => {
-        const reminderDateTime = `${today}T${timeString}:00`;
-        const reminderId = `${medication.id}-${timeString}`;
+        const reminderDateTime = new Date(medication.start_date + 'T' + timeString + ':00');
         
-        // Find corresponding log for this reminder
-        const log = logs.find(log => 
-          log.medication_id === medication.id && 
-          log.scheduled_time.startsWith(today) &&
-          log.scheduled_time.includes(timeString)
-        );
+        // Ensure the reminder falls within today's boundaries
+        if (reminderDateTime >= startOfDay && reminderDateTime <= endOfDay) {
+          const reminderId = `${medication.id}-${timeString}`;
+          
+          // Find corresponding log for this reminder
+          const log = logs.find(log => 
+            log.medication_id === medication.id && 
+            log.scheduled_time.startsWith(todayString) &&
+            log.scheduled_time.includes(timeString)
+          );
 
-        reminders.push({
-          id: reminderId,
-          medicationId: medication.id,
-          medicationName: medication.name,
-          dosage: medication.dosage,
-          time: reminderDateTime,
-          instructions: medication.instructions || '',
-          color: getRandomColor(),
-          status: log?.status || 'pending',
-          logId: log?.id,
-        });
+          // Determine current status
+          let status = log?.status || 'pending';
+          let logId = log?.id;
+
+          // If no log exists or log is pending, check if we need to auto-update
+          if (!log || log.status === 'pending') {
+            const newStatus = determineStatus(reminderDateTime.toISOString());
+            
+            // If status changed from pending to missed, we should update the database
+            if (log && log.status === 'pending' && newStatus === 'missed') {
+              // Auto-update the log in the database
+              updateLogStatus(log.id, 'missed');
+              status = 'missed';
+            } else if (!log && newStatus === 'missed') {
+              // If no log exists and it should be missed, we'll handle this in the UI
+              status = newStatus;
+            } else {
+              status = newStatus;
+            }
+          }
+
+          reminders.push({
+            id: reminderId,
+            medicationId: medication.id,
+            medicationName: medication.name,
+            dosage: medication.dosage,
+            time: reminderDateTime.toISOString(), // Ensure ISO format
+            scheduledTime: reminderDateTime.toISOString(),
+            instructions: medication.instructions || '',
+            color: medication.color || getRandomColor(),
+            status,
+            logId,
+          });
+        }
       });
     });
 
     return reminders.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
   }, []);
 
-  // Calculate adherence rate from logs
-  const calculateAdherenceRate = useCallback((logs: MedicationLog[]) => {
-    const lastWeekLogs = logs.filter(log => {
+  // Add helper function to update log status
+  const updateLogStatus = useCallback(async (logId: string, status: 'missed') => {
+    try {
+      const { error } = await supabase
+        .from('medication_logs')
+        .update({ status })
+        .eq('id', logId);
+
+      if (error) {
+        console.error('❌ Error auto-updating log status:', error);
+      } else {
+        console.log('✅ Auto-updated log status to:', status);
+      }
+    } catch (err) {
+      console.error('❌ Error in updateLogStatus:', err);
+    }
+  }, []);
+
+  // Calculate adherence rate and stats from logs
+  const calculateStats = useCallback((logs: MedicationLog[]) => {
+    console.log('📊 Calculating stats from logs:', logs.length);
+    
+    const now = new Date();
+    
+    // Get current week boundaries (Monday to Sunday)
+    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // Calculate days to Monday
+    
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() + mondayOffset);
+    weekStart.setHours(0, 0, 0, 0); // Start of Monday
+    
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999); // End of Sunday
+    
+    console.log('⏰ Current week boundaries:', {
+      now: now.toISOString(),
+      weekStart: weekStart.toISOString(),
+      weekEnd: weekEnd.toISOString(),
+      currentDay,
+      mondayOffset
+    });
+    
+    // Filter logs for the current week (Monday to Sunday)
+    const currentWeekLogs = logs.filter(log => {
       const logDate = new Date(log.scheduled_time);
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return logDate >= weekAgo;
+      const isInCurrentWeek = logDate >= weekStart && logDate <= weekEnd;
+      
+      console.log('📅 Log check:', {
+        scheduled: log.scheduled_time,
+        status: log.status,
+        logDate: logDate.toISOString(),
+        weekStart: weekStart.toISOString(),
+        weekEnd: weekEnd.toISOString(),
+        isAfterWeekStart: logDate >= weekStart,
+        isBeforeWeekEnd: logDate <= weekEnd,
+        isInCurrentWeek,
+        dayOfWeek: logDate.toLocaleDateString('en-US', { weekday: 'long' })
+      });
+      
+      return isInCurrentWeek;
     });
 
-    if (lastWeekLogs.length === 0) return 0;
+    console.log('📊 Current week logs found:', currentWeekLogs.length);
 
-    const takenLogs = lastWeekLogs.filter(log => log.status === 'taken');
-    return Math.round((takenLogs.length / lastWeekLogs.length) * 100);
-  }, []);
+    if (currentWeekLogs.length === 0) {
+      console.log('📊 No logs found for current week, setting stats to 0');
+      setAdherenceRate(0);
+      setStatsData({ onTime: 0, late: 0, missed: 0, total: 0 });
+      return;
+    }
+
+    // Auto-update status for logs that should be missed (only for past scheduled times)
+    const autoUpdatedLogs = currentWeekLogs.map(log => {
+      const scheduledDate = new Date(log.scheduled_time);
+      const hoursSinceScheduled = (now.getTime() - scheduledDate.getTime()) / (1000 * 60 * 60);
+      
+      // Only auto-mark as missed if the scheduled time has passed by more than 4 hours and it's still pending
+      if (log.status === 'pending' && scheduledDate < now && hoursSinceScheduled > 4) {
+        console.log('⏰ Auto-marking as missed for stats:', {
+          scheduled: log.scheduled_time,
+          hoursPast: hoursSinceScheduled
+        });
+        
+        // Update in database
+        updateLogStatus(log.id, 'missed');
+        
+        return { ...log, status: 'missed' as const };
+      }
+      
+      return log;
+    });
+
+    // Count by status
+    const onTime = autoUpdatedLogs.filter(log => log.status === 'taken').length;
+    const late = autoUpdatedLogs.filter(log => log.status === 'late').length;
+    const missed = autoUpdatedLogs.filter(log => log.status === 'missed').length;
+    const pending = autoUpdatedLogs.filter(log => log.status === 'pending').length;
+    const total = autoUpdatedLogs.length;
+    
+    // Penalty-based (start from 100%)
+    let adherenceRate = 100;
+    if (total > 0) {
+      const missedPenalty = (missed / total) * 100;
+      const latePenalty = (late / total) * 50; // 50% penalty for late
+      adherenceRate = Math.max(0, Math.round(100 - missedPenalty - latePenalty));
+    }
+
+    console.log('📊 Current week stats calculated:', { 
+      onTime, 
+      late, 
+      missed, 
+      pending,
+      total, 
+      adherenceRate
+    });
+
+    setAdherenceRate(adherenceRate);
+    setStatsData({ onTime, late, missed, total });
+  }, [updateLogStatus]);
 
   // Fetch medications from Supabase
   const fetchMedications = useCallback(async () => {
@@ -126,9 +331,8 @@ export function useMedicationData() {
       const todaysReminders = generateTodaysReminders(medicationsData || [], logsData || []);
       setReminders(todaysReminders);
 
-      // Calculate adherence rate
-      const adherence = calculateAdherenceRate(logsData || []);
-      setAdherenceRate(adherence);
+      // Calculate stats
+      calculateStats(logsData || []);
 
     } catch (err: any) {
       console.error('❌ Error fetching medication data:', err);
@@ -136,66 +340,9 @@ export function useMedicationData() {
     } finally {
       setLoading(false);
     }
-  }, [generateTodaysReminders, calculateAdherenceRate]);
+  }, [generateTodaysReminders, calculateStats]);
 
-  // Add new medication
-  const addMedication = useCallback(async (medicationData: any) => {
-    try {
-      setLoading(true);
-      
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Authentication required');
-      }
-
-      console.log('💊 Adding medication:', medicationData);
-
-      const medicationToInsert = {
-        user_id: user.id,
-        name: medicationData.name,
-        dosage: medicationData.dosage,
-        frequency: medicationData.frequency,
-        instructions: medicationData.instructions || null,
-        prescriber: medicationData.prescriber || null,
-        start_date: medicationData.startDate || new Date().toISOString().split('T')[0],
-        end_date: medicationData.endDate || null,
-        is_active: true,
-        reminder_times: medicationData.reminderTimes?.map((timeISO: string) => {
-          const time = new Date(timeISO);
-          return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`;
-        }) || [],
-      };
-
-      const { data, error } = await supabase
-        .from('medications')
-        .insert([medicationToInsert])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Database error:', error);
-        throw new Error('Failed to add medication: ' + error.message);
-      }
-
-      console.log('✅ Medication added:', data);
-
-      // Generate medication logs for the next 30 days
-      await generateMedicationLogs(data);
-
-      // Refresh data
-      await fetchMedications();
-
-      return data;
-    } catch (err: any) {
-      console.error('❌ Error adding medication:', err);
-      setError(err.message || 'Failed to add medication');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchMedications]);
-
-  // Generate medication logs for a medication
+  // Generate medication logs for a medication based on frequency
   const generateMedicationLogs = useCallback(async (medication: MedicationItem) => {
     try {
       if (!medication.reminder_times || medication.reminder_times.length === 0) return;
@@ -205,23 +352,111 @@ export function useMedicationData() {
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 30); // Generate for next 30 days
 
-      // Generate logs for each day
-      for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-        const dateString = date.toISOString().split('T')[0];
-        
-        medication.reminder_times.forEach(timeString => {
-          const scheduledTime = `${dateString}T${timeString}:00+00:00`;
+      console.log('📅 Generating logs for medication:', {
+        name: medication.name,
+        frequency: medication.frequency,
+        reminderTimes: medication.reminder_times,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0]
+      });
+
+      // Generate logs based on frequency
+      switch (medication.frequency) {
+        case 'once_daily':
+        case 'twice_daily':
+        case 'three_times_daily':
+        case 'four_times_daily':
+          // Daily medications - generate for each day
+          for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+            const dateString = date.toISOString().split('T')[0];
+            
+            medication.reminder_times.forEach(timeString => {
+              const scheduledTime = `${dateString}T${timeString}:00+00:00`;
+              
+              logs.push({
+                user_id: medication.user_id,
+                medication_id: medication.id,
+                scheduled_time: scheduledTime,
+                status: 'pending',
+              });
+            });
+          }
+          break;
+
+        case 'every_other_day':
+          // Every other day - generate for alternate days
+          for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 2)) {
+            const dateString = date.toISOString().split('T')[0];
+            
+            medication.reminder_times.forEach(timeString => {
+              const scheduledTime = `${dateString}T${timeString}:00+00:00`;
+              
+              logs.push({
+                user_id: medication.user_id,
+                medication_id: medication.id,
+                scheduled_time: scheduledTime,
+                status: 'pending',
+              });
+            });
+          }
+          break;
+
+        case 'weekly':
+          // Weekly - generate for same day of week
+          const startDayOfWeek = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
           
-          logs.push({
-            user_id: medication.user_id,
-            medication_id: medication.id,
-            scheduled_time: scheduledTime,
-            status: 'pending',
-          });
-        });
+          for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 7)) {
+            const dateString = date.toISOString().split('T')[0];
+            
+            medication.reminder_times.forEach(timeString => {
+              const scheduledTime = `${dateString}T${timeString}:00+00:00`;
+              
+              logs.push({
+                user_id: medication.user_id,
+                medication_id: medication.id,
+                scheduled_time: scheduledTime,
+                status: 'pending',
+              });
+            });
+          }
+          break;
+
+        case 'as_needed':
+          // As needed - don't generate automatic logs
+          console.log('💊 Skipping log generation for "as needed" medication:', medication.name);
+          return;
+
+        default:
+          console.warn('⚠️ Unknown frequency, defaulting to daily:', medication.frequency);
+          // Default to daily if frequency is unknown
+          for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+            const dateString = date.toISOString().split('T')[0];
+            
+            medication.reminder_times.forEach(timeString => {
+              const scheduledTime = `${dateString}T${timeString}:00+00:00`;
+              
+              logs.push({
+                user_id: medication.user_id,
+                medication_id: medication.id,
+                scheduled_time: scheduledTime,
+                status: 'pending',
+              });
+            });
+          }
+          break;
       }
 
-      console.log('📅 Generating medication logs:', logs.length);
+      if (logs.length === 0) {
+        console.log('📅 No logs to generate for medication:', medication.name);
+        return;
+      }
+
+      console.log('📅 Generated medication logs:', {
+        medicationName: medication.name,
+        frequency: medication.frequency,
+        logsCount: logs.length,
+        dateRange: `${logs[0]?.scheduled_time.split('T')[0]} to ${logs[logs.length - 1]?.scheduled_time.split('T')[0]}`
+      });
 
       const { error } = await supabase
         .from('medication_logs')
@@ -238,14 +473,115 @@ export function useMedicationData() {
     }
   }, []);
 
-  // Mark medication as taken
-  const markMedicationTaken = useCallback(async (logId: string) => {
+  // Add new medication with color and proper frequency handling
+  const addMedication = useCallback(async (medicationData: any) => {
     try {
+      setLoading(true);
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Authentication required');
+      }
+
+      console.log('💊 Adding medication:', medicationData);
+
+    
+      // Validate reminder times based on frequency
+      const validateReminderTimes = (frequency: string, reminderTimes: Date[]) => {
+        const frequencyLimits: { [key: string]: number } = {
+          'once_daily': 1,
+          'twice_daily': 2,
+          'three_times_daily': 3,
+          'four_times_daily': 4,
+          'every_other_day': 1,
+          'weekly': 1,
+          'as_needed': 0, // No scheduled times for as needed
+        };
+
+        const maxTimes = frequencyLimits[frequency];
+        if (maxTimes !== undefined && reminderTimes.length > maxTimes) {
+          throw new Error(`${frequency.replace('_', ' ')} medications can have maximum ${maxTimes} reminder time(s)`);
+        }
+
+        if (frequency === 'as_needed' && reminderTimes.length > 0) {
+          console.log('⚠️ Clearing reminder times for "as needed" medication');
+          return [];
+        }
+
+        return reminderTimes;
+      };
+
+      const validatedReminderTimes = validateReminderTimes(
+        medicationData.frequency, 
+        medicationData.reminderTimes || []
+      );
+
+      const medicationToInsert = {
+        user_id: user.id,
+        name: medicationData.name,
+        dosage: medicationData.dosage,
+        frequency: medicationData.frequency,
+        instructions: medicationData.instructions || null,
+        prescriber: medicationData.prescriber || null,
+        start_date: medicationData.startDate || new Date().toISOString().split('T')[0],
+        end_date: medicationData.endDate || null,
+        is_active: true,
+        color: medicationData.color || getRandomColor(),
+        reminder_times: validatedReminderTimes.map((timeISO: string | Date) => {
+          const time = new Date(timeISO);
+          return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`;
+        }),
+      };
+
+      const { data, error } = await supabase
+        .from('medications')
+        .insert([medicationToInsert])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Database error:', error);
+        throw new Error('Failed to add medication: ' + error.message);
+      }
+
+      console.log('✅ Medication added:', data);
+
+      // Generate medication logs based on frequency (only if not "as needed")
+      if (data.frequency !== 'as_needed') {
+        await generateMedicationLogs(data);
+      }
+
+      // Refresh data
+      await fetchMedications();
+
+      return data;
+    } catch (err: any) {
+      console.error('❌ Error adding medication:', err);
+      setError(err.message || 'Failed to add medication');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchMedications, generateMedicationLogs]);
+  
+  // Mark medication as taken with smart status detection
+  const markMedicationTaken = useCallback(async (logId: string, scheduledTime: string) => {
+    try {
+      const now = new Date();
+      const scheduled = new Date(scheduledTime);
+      const timeDiff = now.getTime() - scheduled.getTime();
+      const minutesDiff = timeDiff / (1000 * 60);
+
+      // Determine if it's on time or late
+      const status = minutesDiff > 30 ? 'late' : 'taken';
+
+      console.log('💊 Marking medication as taken:', { logId, scheduledTime, status, minutesDiff });
+
       const { data, error } = await supabase
         .from('medication_logs')
         .update({
-          status: 'taken',
-          taken_time: new Date().toISOString(),
+          status: status,
+          taken_time: now.toISOString(),
         })
         .eq('id', logId)
         .select()
@@ -265,6 +601,36 @@ export function useMedicationData() {
     } catch (err: any) {
       console.error('❌ Error marking medication as taken:', err);
       setError(err.message || 'Failed to mark medication as taken');
+      throw err;
+    }
+  }, [fetchMedications]);
+
+  // Mark medication as missed
+  const markMedicationMissed = useCallback(async (logId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('medication_logs')
+        .update({
+          status: 'missed',
+        })
+        .eq('id', logId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error marking medication as missed:', error);
+        throw error;
+      }
+
+      console.log('✅ Medication marked as missed:', data);
+      
+      // Refresh data
+      await fetchMedications();
+      
+      return data;
+    } catch (err: any) {
+      console.error('❌ Error marking medication as missed:', err);
+      setError(err.message || 'Failed to mark medication as missed');
       throw err;
     }
   }, [fetchMedications]);
@@ -352,6 +718,18 @@ export function useMedicationData() {
     }
   }, [fetchMedications]);
 
+  // Simple and clear approach:
+  const calculateAdherence = (stats: typeof statsData) => {
+    if (stats.total === 0) return 100;
+    
+    // Simple: (taken + late) / total
+    // This treats late doses as successful but shows them separately
+    const successfulDoses = stats.onTime + stats.late;
+    const adherence = (successfulDoses / stats.total) * 100;
+    
+    return Math.round(adherence);
+  };
+
   useEffect(() => {
     fetchMedications();
   }, [fetchMedications]);
@@ -363,10 +741,35 @@ export function useMedicationData() {
     loading,
     error,
     adherenceRate,
+    statsData,
     fetchMedications,
     addMedication,
     updateMedication,
     deleteMedication,
     markMedicationTaken,
+    markMedicationMissed,
   };
 }
+
+const styles = StyleSheet.create({
+  adherenceDescription: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  penaltyText: {
+    fontSize: 9,
+    marginTop: 1,
+  },
+  calculationContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 6,
+  },
+  calculationText: {
+    fontSize: 10,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+});

@@ -1,10 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+  View as RNView,    
+  Easing,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View, Card } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import * as Haptics from 'expo-haptics';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const isTablet = SCREEN_WIDTH > 768;
 
 // Daily health tips pool
 const healthTips = [
@@ -48,8 +58,11 @@ const healthTips = [
 export default function DailyTipCard() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
   const [dailyTip, setDailyTip] = useState(healthTips[0]);
+  const [contentHeight, setContentHeight] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
+  const expandAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Get tip based on current day to ensure consistency
@@ -58,59 +71,134 @@ export default function DailyTipCard() {
     setDailyTip(healthTips[tipIndex]);
   }, []);
 
-  const handleTipPress = () => {
+  const toggleExpand = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsExpanded(!isExpanded);
+    
+    const newExpandedState = !isExpanded;
+    setIsExpanded(newExpandedState);
+    
+    Animated.timing(expandAnim, {
+      toValue: newExpandedState ? 1 : 0,
+      duration: 300,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false, // animating height/opacity
+    }).start();
   };
 
+  // Add extra padding to ensure full content is visible
+  const heightInterp = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, contentHeight + 20], // Add 20px extra padding
+  });
+  
+  const opacityInterp = expandAnim.interpolate({
+    inputRange: [0, 0.3, 1],
+    outputRange: [0, 0, 1], // Delay opacity until height starts expanding
+  });
+
+  // Hint text opacity (inverse of expansion)
+  const hintOpacity = expandAnim.interpolate({
+    inputRange: [0, 0.3, 1],
+    outputRange: [1, 0, 0], // Hide hint as soon as expansion starts
+  });
+
   return (
-    <TouchableOpacity onPress={handleTipPress} activeOpacity={0.8}>
-      <Card style={[styles.tipCard, { borderLeftColor: dailyTip.color }]}>
-        <View style={[styles.tipIconContainer, { backgroundColor: dailyTip.color + '20' }]}>
-          <Ionicons name={dailyTip.icon as any} size={24} color={dailyTip.color} />
-        </View>
-        
-        <View style={styles.tipContent}>
-          <View style={styles.tipHeader}>
-            <Text style={[styles.tipTitle, { color: Colors[colorScheme].text }]}>
-              {dailyTip.title}
-            </Text>
-            <Ionicons 
-              name={isExpanded ? "chevron-up" : "chevron-down"} 
-              size={20} 
-              color={Colors[colorScheme].text} 
-            />
-          </View>
-          
-          <Text style={[styles.tipLabel, { color: dailyTip.color }]}>
-            Tip of the Day
-          </Text>
-          
-          <Text 
-            style={[styles.tipText, { color: isDark ? '#A0B4C5' : '#666' }]}
-            numberOfLines={isExpanded ? undefined : 2}
+    <>
+      {/* off-screen measure container with proper padding */}
+      <RNView
+        style={styles.hiddenMeasure}
+        onLayout={(e) => {
+          const measuredHeight = e.nativeEvent.layout.height;
+          console.log('📏 Measured content height:', measuredHeight);
+          if (!contentHeight || measuredHeight > contentHeight) {
+            setContentHeight(measuredHeight);
+          }
+        }}
+      >
+        <Text style={[styles.tipText, isDark ? { color: '#A0B4C5' } : { color: '#666' }]}>
+          {dailyTip.content}
+        </Text>
+      </RNView>
+
+      <TouchableOpacity onPress={toggleExpand} activeOpacity={0.8}>
+        <Card style={[styles.tipCard, { borderStartColor: dailyTip.color }]}>
+          <View
+            style={[
+              styles.tipIconContainer,
+              { backgroundColor: dailyTip.color + '20' },
+            ]}
           >
-            {dailyTip.content}
-          </Text>
-          
-          {!isExpanded && (
-            <Text style={[styles.expandHint, { color: Colors[colorScheme].tint }]}>
-              Tap to read more
+            <Ionicons name={dailyTip.icon as any} size={24} color={dailyTip.color} />
+          </View>
+
+          <View style={styles.tipContent}>
+            <View style={styles.tipHeader}>
+              <Text style={[styles.tipTitle, { color: Colors[colorScheme].text }]}>
+                {dailyTip.title}
+              </Text>
+              <Animated.View
+                style={{ 
+                  transform: [{ 
+                    rotate: expandAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '180deg'],
+                    }) 
+                  }] 
+                }}
+              >
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={Colors[colorScheme].text}
+                />
+              </Animated.View>
+            </View>
+
+            <Text style={[styles.tipLabel, { color: dailyTip.color }]}>
+              Tip of the Day
             </Text>
-          )}
-        </View>
-      </Card>
-    </TouchableOpacity>
+
+            {/* animated content area with proper height */}
+            <Animated.View
+              style={{
+                height: heightInterp,
+                opacity: opacityInterp,
+                overflow: 'hidden',
+              }}
+            >
+              <View style={styles.contentWrapper}>
+                <Text style={[styles.tipText, isDark ? { color: '#A0B4C5' } : { color: '#666' }]}>
+                  {dailyTip.content}
+                </Text>
+              </View>
+            </Animated.View>
+
+            {/* animated hint text that fades out smoothly */}
+            <Animated.View 
+              style={{ 
+                opacity: hintOpacity,
+                height: isExpanded ? 0 : 'auto', // Collapse height when expanded
+              }}
+              pointerEvents={isExpanded ? 'none' : 'auto'}
+            >
+              <Text style={[styles.expandHint, { color: Colors[colorScheme].tint }]}>
+                Tap to read tip
+              </Text>
+            </Animated.View>
+          </View>
+        </Card>
+      </TouchableOpacity>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   tipCard: {
     flexDirection: 'row',
-    marginHorizontal: 20,
+    marginHorizontal: 10,
     marginTop: 10,
     padding: 15,
-    borderLeftWidth: 4,
+    borderStartWidth: 4,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -140,12 +228,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     flex: 1,
-  },
+  } as any,
   tipLabel: {
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 8,
     textTransform: 'uppercase',
+  } as any,
+  contentWrapper: {
+    paddingTop: 8,
+    paddingBottom: 8, // Add bottom padding for full visibility
   },
   tipText: {
     fontSize: 14,
@@ -153,7 +245,16 @@ const styles = StyleSheet.create({
   },
   expandHint: {
     fontSize: 12,
-    marginTop: 8,
+    marginTop: 2,
     fontStyle: 'italic',
+  } as any,
+  hiddenMeasure: {
+    position: 'absolute',
+    top: -9999,
+    left: 0,
+    right: 0,
+    opacity: 0,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
 });

@@ -61,6 +61,32 @@ export default function AddMedicationModal({
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [editingTimeIndex, setEditingTimeIndex] = useState(0);
 
+  const getMaxReminderTimes = (frequency: string): number => {
+    const frequencyLimits: { [key: string]: number } = {
+      'once_daily': 1,
+      'twice_daily': 2,
+      'three_times_daily': 3,
+      'four_times_daily': 4,
+      'every_other_day': 1,
+      'weekly': 1,
+      'as_needed': 0,
+    };
+    return frequencyLimits[frequency] || 1;
+  };
+
+  const getFrequencyDescription = (frequency: string): string => {
+    const descriptions: { [key: string]: string } = {
+      'once_daily': 'One reminder per day',
+      'twice_daily': 'Two reminders per day',
+      'three_times_daily': 'Three reminders per day',
+      'four_times_daily': 'Four reminders per day',
+      'every_other_day': 'One reminder every other day',
+      'weekly': 'One reminder per week',
+      'as_needed': 'No scheduled reminders (take when needed)',
+    };
+    return descriptions[frequency] || '';
+  };
+
   const handleSave = () => {
     if (!medicationName.trim()) {
       Alert.alert('Error', 'Please enter a medication name');
@@ -72,14 +98,27 @@ export default function AddMedicationModal({
       return;
     }
 
+    // Validate reminder times based on frequency
+    const maxTimes = getMaxReminderTimes(selectedFrequency);
+    if (selectedFrequency !== 'as_needed' && reminderTimes.length === 0) {
+      Alert.alert('Error', 'Please add at least one reminder time');
+      return;
+    }
+
+    if (reminderTimes.length > maxTimes) {
+      Alert.alert('Error', `${selectedFrequency.replace('_', ' ')} medications can have maximum ${maxTimes} reminder time(s)`);
+      return;
+    }
+
     const medicationData = {
       name: medicationName.trim(),
       dosage: dosage.trim(),
       frequency: selectedFrequency,
-      startDate: startDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
+      startDate: startDate.toISOString().split('T')[0],
       instructions: instructions.trim() || null,
-      prescriber: null, // Add prescriber field if needed
-      reminderTimes: reminderTimes, // Keep as Date objects for processing
+      prescriber: null,
+      color: selectedColor,
+      reminderTimes: reminderTimes,
     };
 
     console.log('💊 Saving medication data:', medicationData);
@@ -103,6 +142,18 @@ export default function AddMedicationModal({
   };
 
   const addReminderTime = () => {
+    const maxTimes = getMaxReminderTimes(selectedFrequency);
+    
+    if (selectedFrequency === 'as_needed') {
+      Alert.alert('Not Available', 'As needed medications don\'t require scheduled reminder times.');
+      return;
+    }
+    
+    if (reminderTimes.length >= maxTimes) {
+      Alert.alert('Limit Reached', `${selectedFrequency.replace('_', ' ')} medications can have maximum ${maxTimes} reminder time(s).`);
+      return;
+    }
+    
     setReminderTimes([...reminderTimes, new Date()]);
   };
 
@@ -124,6 +175,40 @@ export default function AddMedicationModal({
       minute: '2-digit',
       hour12: true 
     });
+  };
+
+  const handleFrequencyChange = (frequency: string) => {
+    setSelectedFrequency(frequency);
+    
+    const maxTimes = getMaxReminderTimes(frequency);
+    
+    if (frequency === 'as_needed') {
+      // Clear all reminder times for "as needed"
+      setReminderTimes([]);
+    } else {
+      // Adjust reminder times to match frequency requirements
+      const currentTimes = reminderTimes.length;
+      
+      if (currentTimes === 0) {
+        // Add default reminder time if none exist
+        setReminderTimes([new Date()]);
+      } else if (currentTimes > maxTimes) {
+        // Trim excess reminder times
+        setReminderTimes(reminderTimes.slice(0, maxTimes));
+      } else if (currentTimes < maxTimes && frequency.includes('daily')) {
+        // Auto-add reminder times for multi-daily frequencies
+        const newTimes = [...reminderTimes];
+        const defaultTimes = ['09:00', '13:00', '18:00', '21:00'];
+        
+        while (newTimes.length < maxTimes && newTimes.length < defaultTimes.length) {
+          const [hours, minutes] = defaultTimes[newTimes.length].split(':');
+          const time = new Date();
+          time.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          newTimes.push(time);
+        }
+        setReminderTimes(newTimes);
+      }
+    }
   };
 
   return (
@@ -210,7 +295,7 @@ export default function AddMedicationModal({
                           : 'transparent'
                       }
                     ]}
-                    onPress={() => setSelectedFrequency(option.value)}
+                    onPress={() => handleFrequencyChange(option.value)}
                     disabled={loading}
                   >
                     <Text style={[
@@ -226,6 +311,13 @@ export default function AddMedicationModal({
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+
+              {/* Frequency Description */}
+              {selectedFrequency && (
+                <Text style={[styles.frequencyDescription, { color: isDark ? '#A0B4C5' : '#666666' }]}>
+                  {getFrequencyDescription(selectedFrequency)}
+                </Text>
+              )}
 
               {/* Start Date */}
               <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>
@@ -580,5 +672,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  frequencyDescription: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginBottom: 8,
   },
 });
