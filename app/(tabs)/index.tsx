@@ -38,13 +38,11 @@ export default function HomeScreen() {
       >
         <HomeHeader userInfo={userInfo} />
         
+        <DailyTipCard />
         {/* Quick Access Section */}
         <QuickAccessSection />
         <HealthNewsSection healthNews={healthNews} loading={loading} />
-        <DailyTipCard />
-        
-        {/* Bottom padding */}
-        <View style={{ height: 100 }} />
+      
       </ScrollView>
     </View>
   );

@@ -10,6 +10,7 @@ export type MedicationItem = {
   end_date?: string;
   is_active: boolean;
   reminder_times?: string[]; // Array of time strings
+  color?: string; // Add color field
   created_at: string;
   updated_at: string;
 };
@@ -20,7 +21,7 @@ export type MedicationLog = {
   medication_id: string;
   scheduled_time: string;
   taken_time?: string;
-  status: 'pending' | 'taken' | 'missed' | 'skipped';
+  status: 'pending' | 'taken' | 'missed' | 'skipped' | 'late'; // Add 'late' status
   notes?: string;
   created_at: string;
 };
@@ -33,8 +34,9 @@ export type ReminderItem = {
   time: string;
   instructions?: string;
   color?: string;
-  status?: 'pending' | 'taken' | 'missed' | 'skipped';
+  status?: 'pending' | 'taken' | 'missed' | 'skipped' | 'late';
   logId?: string;
+  scheduledTime?: string; // Add for determining on-time vs late
 };
 
 export type NotificationItem = {

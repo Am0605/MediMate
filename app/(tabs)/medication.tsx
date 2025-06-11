@@ -10,13 +10,23 @@ import MedicationStats from '@/components/medication/MedicationStats';
 import MedicationList from '@/components/medication/MedicationList';
 import MedicationReminders from '@/components/medication/MedicationReminders';
 
-// Mock data import (replace with actual data service later)
+// Import data hook
 import { useMedicationData } from '@/hooks/useMedicationData';
 
 export default function MedicationScreen() {
   const colorScheme = useColorScheme();
   const [refreshing, setRefreshing] = useState(false);
-  const { medications, reminders, adherenceRate, fetchMedications, loading, addMedication } = useMedicationData();
+  const { 
+    medications, 
+    reminders, 
+    adherenceRate,
+    statsData,
+    fetchMedications, 
+    loading, 
+    addMedication,
+    markMedicationTaken,
+    error 
+  } = useMedicationData();
 
   // Pull to refresh functionality
   const onRefresh = useCallback(() => {
@@ -26,8 +36,17 @@ export default function MedicationScreen() {
     });
   }, [fetchMedications]);
 
+  // Handle marking medication as taken
+  const handleMarkTaken = useCallback(async (logId: string, scheduledTime: string) => {
+    try {
+      await markMedicationTaken(logId, scheduledTime);
+    } catch (error) {
+      console.error('Error marking medication as taken:', error);
+    }
+  }, [markMedicationTaken]);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.contentContainer}
@@ -39,8 +58,14 @@ export default function MedicationScreen() {
           onAddMedication={addMedication}
           loading={loading}
         />
-        <MedicationStats adherenceRate={adherenceRate} />
-        <MedicationReminders reminders={reminders} />
+        <MedicationStats 
+          adherenceRate={adherenceRate} 
+          statsData={statsData}
+        />
+        <MedicationReminders 
+          reminders={reminders} 
+          onMarkTaken={handleMarkTaken}
+        />
         <MedicationList medications={medications} />
       </ScrollView>
     </View>
@@ -55,6 +80,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 40, 
+    paddingBottom: 100,
   },
 });

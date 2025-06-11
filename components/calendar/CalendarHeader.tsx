@@ -13,11 +13,6 @@ export default function CalendarHeader() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Handle calendar sync functionality
   };
-
-  const handleFilterPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Handle filter functionality
-  };
   
   return (
     <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
@@ -34,13 +29,6 @@ export default function CalendarHeader() {
           onPress={handleSyncPress}
         >
           <Ionicons name="sync-outline" size={20} color={Colors[colorScheme].tint} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.filterButton}
-          onPress={handleFilterPress}
-        >
-          <Ionicons name="filter-outline" size={22} color={Colors[colorScheme].text} />
         </TouchableOpacity>
       </View>
     </View>
