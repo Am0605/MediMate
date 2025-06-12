@@ -51,7 +51,12 @@ export default function MedicationScreen() {
         style={styles.scrollContainer}
         contentContainerStyle={styles.contentContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={Colors[colorScheme].tint}
+            colors={[Colors[colorScheme].tint]}
+          />
         }
       >
         <MedicationHeader 
