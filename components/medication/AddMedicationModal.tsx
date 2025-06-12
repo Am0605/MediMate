@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Modal, 
   ScrollView, 
@@ -7,7 +7,8 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
-  StyleSheet
+  StyleSheet,
+  Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from '@/components/Themed';
@@ -47,6 +48,46 @@ export default function AddMedicationModal({
 }: AddMedicationModalProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(100)).current;
+
+  useEffect(() => {
+    if (visible) {
+      // Reset animations
+      fadeAnim.setValue(0);
+      slideAnim.setValue(100);
+
+      // Start animations
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Animate out
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 100,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
 
   // Form state
   const [medicationName, setMedicationName] = useState('');
@@ -129,16 +170,31 @@ export default function AddMedicationModal({
   };
 
   const handleClose = () => {
-    // Reset form
-    setMedicationName('');
-    setDosage('');
-    setSelectedFrequency('once_daily');
-    setInstructions('');
-    setNotes('');
-    setSelectedColor(MEDICATION_COLORS[0]);
-    setStartDate(new Date());
-    setReminderTimes([new Date()]);
-    onClose();
+    // Play close animation first
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 100,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // Reset form
+      setMedicationName('');
+      setDosage('');
+      setSelectedFrequency('once_daily');
+      setInstructions('');
+      setNotes('');
+      setSelectedColor(MEDICATION_COLORS[0]);
+      setStartDate(new Date());
+      setReminderTimes([new Date()]);
+      // Call onClose after animation and reset
+      onClose();
+    });
   };
 
   const addReminderTime = () => {
@@ -213,7 +269,7 @@ export default function AddMedicationModal({
 
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       transparent={true}
       visible={visible}
       onRequestClose={handleClose}
@@ -222,8 +278,23 @@ export default function AddMedicationModal({
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme].card }]}>
+        <Animated.View 
+          style={[
+            styles.modalContainer,
+            {
+              opacity: fadeAnim,
+            }
+          ]}
+        >
+          <Animated.View 
+            style={[
+              styles.modalContent, 
+              { 
+                backgroundColor: Colors[colorScheme].card,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
@@ -507,8 +578,8 @@ export default function AddMedicationModal({
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );

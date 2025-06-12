@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Modal, TouchableOpacity, ScrollView, Alert, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -33,6 +33,50 @@ export default function AppointmentModal({
   loading = false
 }: AppointmentModalProps) {
   const colorScheme = useColorScheme();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(100)).current;
+
+  // Animation effects
+  useEffect(() => {
+    if (visible) {
+      // Reset animations
+      fadeAnim.setValue(0);
+      slideAnim.setValue(100);
+
+      // Start animations
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const handleClose = () => {
+    // Play close animation first
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 100,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onClose();
+    });
+  };
 
   // Form state
   const [formTitle, setFormTitle] = useState('');
@@ -308,19 +352,35 @@ export default function AppointmentModal({
 
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       transparent={true}
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <View style={styles.modalContainer}>
-        <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme].card }]}>
+      <Animated.View 
+        style={[
+          styles.modalContainer,
+          {
+            opacity: fadeAnim,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          }
+        ]}
+      >
+        <Animated.View 
+          style={[
+            styles.modalContent, 
+            { 
+              backgroundColor: Colors[colorScheme].card,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
           {/* Header */}
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
               {editingAppointment ? 'Edit Appointment' : 'New Appointment'}
             </Text>
-            <TouchableOpacity onPress={onClose} disabled={loading}>
+            <TouchableOpacity onPress={handleClose} disabled={loading}>
               <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
             </TouchableOpacity>
           </View>
@@ -369,8 +429,8 @@ export default function AppointmentModal({
             showTimePicker={showTimePicker}
             formDate={formDate}
             formTime={formTime}
-            onDateChange={handleDateChange}  // Use the new handlers
-            onTimeChange={handleTimeChange}  // Use the new handlers
+            onDateChange={handleDateChange}
+            onTimeChange={handleTimeChange}
             onCloseDatePicker={() => setShowDatePicker(false)}
             onCloseTimePicker={() => setShowTimePicker(false)}
             loading={loading}
@@ -381,7 +441,7 @@ export default function AppointmentModal({
             {isCompleted ? (
               <TouchableOpacity 
                 style={[styles.closeButton, { backgroundColor: Colors[colorScheme].tint }]}
-                onPress={onClose}
+                onPress={handleClose}
                 disabled={loading}
               >
                 <Text style={styles.buttonText}>Close</Text>
@@ -409,8 +469,8 @@ export default function AppointmentModal({
               </>
             )}
           </View>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }
