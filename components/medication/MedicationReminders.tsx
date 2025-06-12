@@ -362,6 +362,20 @@ export default function MedicationReminders({
       const { startOfDay, endOfDay } = getCurrentDayBoundaries();
       const reminderDate = new Date(r.time);
       
+      console.log('🔍 COMPONENT FILTER DEBUG:', {
+        medicationName: r.medicationName,
+        reminderTime: r.time,
+        reminderDateISO: reminderDate.toISOString(),
+        reminderDateLocal: reminderDate.toLocaleString(),
+        startOfDay: startOfDay.toISOString(),
+        endOfDay: endOfDay.toISOString(),
+        isAfterStart: reminderDate >= startOfDay,
+        isBeforeEnd: reminderDate <= endOfDay,
+        isWithinToday: reminderDate >= startOfDay && reminderDate <= endOfDay,
+        status: r.status,
+        logId: r.logId
+      });
+      
       // Check if reminder time falls within today's boundaries
       return reminderDate >= startOfDay && reminderDate <= endOfDay;
     })
@@ -372,6 +386,24 @@ export default function MedicationReminders({
       return new Date(a.time).getTime() - new Date(b.time).getTime();
     })
     .slice(0, isTablet ? 8 : 5); // Show more on tablets
+
+  console.log('📋 COMPONENT FINAL FILTERED REMINDERS:', {
+    totalInputReminders: reminders.length,
+    todaysReminders: todaysReminders.length,
+    currentTime: new Date().toISOString(),
+    currentDate: new Date().toLocaleDateString('en-CA'),
+    currentDay: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+    inputReminders: reminders.map(r => ({
+      name: r.medicationName,
+      time: r.time,
+      status: r.status
+    })),
+    filteredReminders: todaysReminders.map(r => ({
+      name: r.medicationName,
+      time: r.time,
+      status: r.status
+    }))
+  });
 
   return (
     <View style={[
