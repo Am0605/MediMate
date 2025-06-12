@@ -55,29 +55,31 @@ export default function AIModal({ visible, onClose }: AIModalProps) {
 
   React.useEffect(() => {
     if (visible) {
-      Animated.parallel([
+      // Start fade animation slightly before slide
+      Animated.sequence([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 300,
+          duration: 150,
           useNativeDriver: true,
         }),
         Animated.spring(slideAnim, {
           toValue: 0,
-          tension: 100,
-          friction: 8,
+          tension: 65,
+          friction: 11,
           useNativeDriver: true,
         }),
       ]).start();
     } else {
+      // Animate out in parallel for a snappy close
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 200,
+          duration: 150,
           useNativeDriver: true,
         }),
         Animated.timing(slideAnim, {
           toValue: 300,
-          duration: 200,
+          duration: 100,
           useNativeDriver: true,
         }),
       ]).start();
@@ -101,7 +103,23 @@ export default function AIModal({ visible, onClose }: AIModalProps) {
     if (Platform.OS === 'ios') {
       Haptics.selectionAsync();
     }
-    onClose();
+    
+    // Play close animation first
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 300,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // Only call onClose after animation completes
+      onClose();
+    });
   };
 
   const handleSymptomChecker = () => {
