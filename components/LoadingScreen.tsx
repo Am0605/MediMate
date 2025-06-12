@@ -1,15 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
   Text, 
-  ActivityIndicator, 
-  Animated,
   Dimensions,
-  Image
+  Animated
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 
@@ -29,12 +26,12 @@ export default function LoadingScreen({
   const colorScheme = useColorScheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const dotsAnim = useRef([
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0)
+
+  // Bubble animation values
+  const bubbles = useRef([
+    { scale: new Animated.Value(0), opacity: new Animated.Value(0) },
+    { scale: new Animated.Value(0), opacity: new Animated.Value(0) },
+    { scale: new Animated.Value(0), opacity: new Animated.Value(0) }
   ]).current;
 
   useEffect(() => {
@@ -53,80 +50,80 @@ export default function LoadingScreen({
       }),
     ]).start();
 
-    // Continuous pulse animation for logo
-    const pulseAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
+    // Bubble animations
+    const bubbleAnimations = bubbles.map((bubble, index) => {
+      const sequence = Animated.sequence([
+        Animated.delay(index * 200),
+        Animated.parallel([
+          Animated.spring(bubble.scale, {
+            toValue: 1,
+            tension: 10,
+            friction: 3,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bubble.opacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          })
+        ]),
+        Animated.delay(1000),
+        Animated.parallel([
+          Animated.spring(bubble.scale, {
+            toValue: 0,
+            tension: 10,
+            friction: 3,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bubble.opacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          })
+        ])
+      ]);
 
-    // Continuous rotation for loading indicator
-    const rotationAnimation = Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 2000,
-        useNativeDriver: true,
-      })
-    );
+      return Animated.loop(sequence);
+    });
 
-    // Animated dots
-    const dotsAnimation = Animated.loop(
-      Animated.stagger(300, 
-        dotsAnim.map(dot => 
-          Animated.sequence([
-            Animated.timing(dot, {
-              toValue: 1,
-              duration: 600,
-              useNativeDriver: true,
-            }),
-            Animated.timing(dot, {
-              toValue: 0,
-              duration: 600,
-              useNativeDriver: true,
-            }),
-          ])
-        )
-      )
-    );
-
-    if (variant !== 'minimal') {
-      pulseAnimation.start();
-      dotsAnimation.start();
-    }
-    rotationAnimation.start();
+    bubbleAnimations.forEach(anim => anim.start());
 
     return () => {
-      pulseAnimation.stop();
-      rotationAnimation.stop();
-      dotsAnimation.stop();
+      bubbleAnimations.forEach(anim => anim.stop());
     };
   }, [variant]);
 
-  const renderMinimalLoading = () => (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
-    >
-      <Animated.View style={[
-        styles.minimalContainer,
-        {
-          opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }]
-        }
-      ]}
-      >
-        <ActivityIndicator 
-          size="large" 
-          color={Colors[colorScheme].tint} 
+  const renderBubbles = () => (
+    <View style={styles.bubbleContainer}>
+      {bubbles.map((bubble, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.bubble,
+            {
+              backgroundColor: Colors[colorScheme].tint,
+              transform: [{ scale: bubble.scale }],
+              opacity: bubble.opacity
+            }
+          ]}
         />
-        <Text style={[styles.minimalText, { color: Colors[colorScheme].text }]}>
+      ))}
+    </View>
+  );
+
+  const renderMinimalLoading = () => (
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+      <Animated.View 
+        style={[
+          styles.minimalContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }]
+          }
+        ]}
+      >
+        {renderBubbles()}
+        <Text style={[styles.minimalText, { color: Colors[colorScheme].text }]}> 
           {message}
         </Text>
       </Animated.View>
@@ -138,52 +135,17 @@ export default function LoadingScreen({
       colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + '80']}
       style={styles.container}
     >
-      <Animated.View style={[
-        styles.splashContent,
-        {
-          opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }]
-        }
-      ]}
+      <Animated.View 
+        style={[
+          styles.splashContent,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }]
+          }
+        ]}
       >
-        {showLogo && (
-          <Animated.View style={[
-            styles.logoContainer,
-            {
-              transform: [{ scale: pulseAnim }]
-            }
-          ]}
-          >
-            <View style={styles.logoBackground}>
-              <Image
-                source={require('@/assets/images/logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-          </Animated.View>
-        )}
-        
-        <View style={styles.brandContainer}>
-          <Text style={styles.brandText}>MediMate</Text>
-          <Text style={styles.taglineText}>Your AI Health Companion</Text>
-        </View>
-
         <View style={styles.loadingContainer}>
-          <Animated.View style={[
-            styles.customSpinner,
-            {
-              transform: [{
-                rotate: rotateAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0deg', '360deg']
-                })
-              }]
-            }
-          ]}
-          >
-            <Ionicons name="medical" size={24} color="#fff" />
-          </Animated.View>
+          {renderBubbles()}
           <Text style={styles.splashMessage}>{message}</Text>
         </View>
       </Animated.View>
@@ -191,96 +153,23 @@ export default function LoadingScreen({
   );
 
   const renderDefaultLoading = () => (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
-    >
-      <Animated.View style={[
-        styles.defaultContent,
-        {
-          opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }]
-        }
-      ]}
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+      <Animated.View 
+        style={[
+          styles.defaultContent,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }]
+          }
+        ]}
       >
-        {showLogo && (
-          <Animated.View style={[
-            styles.logoContainer,
-            {
-              transform: [{ scale: pulseAnim }]
-            }
-          ]}
-          >
-            <View style={[styles.logoBackground, { backgroundColor: Colors[colorScheme].card }]}>
-              <Image
-                source={require('@/assets/images/logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-          </Animated.View>
-        )}
-
         <View style={styles.loadingIndicatorContainer}>
-          <View style={styles.spinnerContainer}>
-            <Animated.View style={[
-              styles.customSpinner,
-              { backgroundColor: Colors[colorScheme].tint },
-              {
-                transform: [{
-                  rotate: rotateAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0deg', '360deg']
-                  })
-                }]
-              }
-            ]}
-            >
-              <Ionicons name="medical" size={20} color="#fff" />
-            </Animated.View>
-          </View>
-
-          <Text style={[styles.messageText, { color: Colors[colorScheme].text }]}>
+          {renderBubbles()}
+          <Text style={[styles.messageText, { color: Colors[colorScheme].text }]}> 
             {message}
           </Text>
-
-          {/* Animated dots */}
-          <View style={styles.dotsContainer}>
-            {dotsAnim.map((dot, index) => (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.dot,
-                  { backgroundColor: Colors[colorScheme].tint },
-                  {
-                    opacity: dot,
-                    transform: [{
-                      scale: dot.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1.2]
-                      })
-                    }]
-                  }
-                ]}
-              />
-            ))}
-          </View>
         </View>
-
-        {/* Progress bar */}
         <View style={[styles.progressContainer, { backgroundColor: Colors[colorScheme].card }]}>
-          <Animated.View 
-            style={[
-              styles.progressBar,
-              { backgroundColor: Colors[colorScheme].tint },
-              {
-                transform: [{
-                  translateX: rotateAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-width, width * 0.7]
-                  })
-                }]
-              }
-            ]}
-          />
         </View>
       </Animated.View>
     </View>
@@ -302,8 +191,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
-  // Minimal variant
   minimalContainer: {
     alignItems: 'center',
   },
@@ -312,31 +199,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-
-  // Splash variant
   splashContent: {
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
     paddingHorizontal: 40,
   },
-  brandContainer: {
+  loadingContainer: {
     alignItems: 'center',
-    marginVertical: 40,
-  },
-  brandText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  taglineText: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 8,
-    textAlign: 'center',
+    marginTop: 40,
   },
   splashMessage: {
     color: '#fff',
@@ -344,70 +215,18 @@ const styles = StyleSheet.create({
     marginTop: 20,
     textAlign: 'center',
   },
-
-  // Default variant
   defaultContent: {
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  logoContainer: {
-    marginBottom: 40,
-  },
-  logoBackground: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  logo: {
-    width: 50,
-    height: 50,
-  },
   loadingIndicatorContainer: {
     alignItems: 'center',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    marginTop: 40,
-  },
-  spinnerContainer: {
-    marginBottom: 20,
-  },
-  customSpinner: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
   messageText: {
     fontSize: 18,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 20,
-  },
-  dotsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
   },
   progressContainer: {
     width: width * 0.7,
@@ -416,9 +235,17 @@ const styles = StyleSheet.create({
     marginTop: 30,
     overflow: 'hidden',
   },
-  progressBar: {
-    width: '30%',
-    height: '100%',
-    borderRadius: 2,
+  bubbleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 40,
+    marginVertical: 16,
+  },
+  bubble: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginHorizontal: 8,
   },
 });
