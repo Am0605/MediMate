@@ -275,11 +275,7 @@ export default function HealthPersonalInfo({ healthProfile, onEdit }: HealthPers
   };
 
   const handleEditPress = () => {
-    if (onEdit) {
-      onEdit();
-    } else {
-      router.push('/(setting)/edit-profile');
-    }
+    router.push('/(setting)/edit-profile');
   };
 
   const healthInfoItems = [
