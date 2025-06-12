@@ -58,102 +58,43 @@ export function useMedicationData() {
     const startDate = new Date(medication.start_date || new Date());
     const daysDifference = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
+    console.log(`📅 Frequency check for ${medication.name}:`, {
+      frequency: medication.frequency,
+      startDate: medication.start_date,
+      startDateParsed: startDate.toISOString(),
+      today: today.toISOString(),
+      daysDifference,
+      todayDayOfWeek: today.getDay(),
+      startDateDayOfWeek: startDate.getDay()
+    });
+
     switch (medication.frequency) {
       case 'once_daily':
       case 'twice_daily':
       case 'three_times_daily':
       case 'four_times_daily':
+        console.log(`✅ Daily medication ${medication.name} should have reminder today`);
         return true; // Daily medications
 
       case 'every_other_day':
-        return daysDifference % 2 === 0; // Every other day
+        const shouldHaveEveryOther = daysDifference % 2 === 0;
+        console.log(`${shouldHaveEveryOther ? '✅' : '❌'} Every other day medication ${medication.name}: daysDifference=${daysDifference}, shouldHave=${shouldHaveEveryOther}`);
+        return shouldHaveEveryOther; // Every other day
 
       case 'weekly':
-        return daysDifference % 7 === 0; // Same day of week as start date
+        const shouldHaveWeekly = daysDifference % 7 === 0;
+        console.log(`${shouldHaveWeekly ? '✅' : '❌'} Weekly medication ${medication.name}: daysDifference=${daysDifference}, shouldHave=${shouldHaveWeekly}`);
+        return shouldHaveWeekly; // Same day of week as start date
 
       case 'as_needed':
+        console.log(`⏭️ As needed medication ${medication.name} - no scheduled reminders`);
         return false; // No scheduled reminders
 
       default:
+        console.log(`⚠️ Unknown frequency for ${medication.name}: ${medication.frequency}, defaulting to daily`);
         return true; // Default to daily
     }
   };
-
-  // Helper function to generate today's reminders from medications
-  const generateTodaysReminders = useCallback((medications: MedicationItem[], logs: MedicationLog[]): ReminderItem[] => {
-    // Get precise current day boundaries
-    const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 59, 999);
-    
-    // Use consistent date formatting
-    const todayString = now.toISOString().split('T')[0];
-    const reminders: ReminderItem[] = [];
-
-    medications.forEach(medication => {
-      if (!medication.is_active || !medication.reminder_times) return;
-      
-      // Check if this medication should have reminders today based on frequency
-      if (!shouldHaveReminderToday(medication, now)) {
-        console.log(`📅 Skipping reminders for ${medication.name} - not scheduled for today (${medication.frequency})`);
-        return;
-      }
-
-      medication.reminder_times.forEach(timeString => {
-        const reminderDateTime = new Date(medication.start_date + 'T' + timeString + ':00');
-        
-        // Ensure the reminder falls within today's boundaries
-        if (reminderDateTime >= startOfDay && reminderDateTime <= endOfDay) {
-          const reminderId = `${medication.id}-${timeString}`;
-          
-          // Find corresponding log for this reminder
-          const log = logs.find(log => 
-            log.medication_id === medication.id && 
-            log.scheduled_time.startsWith(todayString) &&
-            log.scheduled_time.includes(timeString)
-          );
-
-          // Determine current status
-          let status = log?.status || 'pending';
-          let logId = log?.id;
-
-          // If no log exists or log is pending, check if we need to auto-update
-          if (!log || log.status === 'pending') {
-            const newStatus = determineStatus(reminderDateTime.toISOString());
-            
-            // If status changed from pending to missed, we should update the database
-            if (log && log.status === 'pending' && newStatus === 'missed') {
-              // Auto-update the log in the database
-              updateLogStatus(log.id, 'missed');
-              status = 'missed';
-            } else if (!log && newStatus === 'missed') {
-              // If no log exists and it should be missed, we'll handle this in the UI
-              status = newStatus;
-            } else {
-              status = newStatus;
-            }
-          }
-
-          reminders.push({
-            id: reminderId,
-            medicationId: medication.id,
-            medicationName: medication.name,
-            dosage: medication.dosage,
-            time: reminderDateTime.toISOString(), // Ensure ISO format
-            scheduledTime: reminderDateTime.toISOString(),
-            instructions: medication.instructions || '',
-            color: medication.color || getRandomColor(),
-            status,
-            logId,
-          });
-        }
-      });
-    });
-
-    return reminders.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-  }, []);
 
   // Add helper function to update log status
   const updateLogStatus = useCallback(async (logId: string, status: 'missed') => {
@@ -172,6 +113,172 @@ export function useMedicationData() {
       console.error('❌ Error in updateLogStatus:', err);
     }
   }, []);
+
+  // Helper function to generate today's reminders from medications
+  const generateTodaysReminders = useCallback((medications: MedicationItem[], logs: MedicationLog[]): ReminderItem[] => {
+    // Get precise current day boundaries
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    // Use consistent date formatting
+    const todayString = now.toISOString().split('T')[0];
+    const reminders: ReminderItem[] = [];
+
+    console.log('🔍 TODAY\'S REMINDER GENERATION DEBUG:', {
+      currentDate: now.toISOString(),
+      todayString,
+      startOfDay: startOfDay.toISOString(),
+      endOfDay: endOfDay.toISOString(),
+      dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
+      dateOnly: now.toLocaleDateString('en-CA'), // YYYY-MM-DD format
+      medicationsCount: medications.length,
+      logsCount: logs.length
+    });
+
+    medications.forEach(medication => {
+      if (!medication.is_active || !medication.reminder_times) {
+        console.log(`⏭️ Skipping medication: ${medication.name} - active: ${medication.is_active}, reminder_times: ${medication.reminder_times}`);
+        return;
+      }
+      
+      // Check if this medication should have reminders today based on frequency
+      const shouldHaveToday = shouldHaveReminderToday(medication, now);
+      console.log(`📅 Medication frequency check: ${medication.name}`, {
+        frequency: medication.frequency,
+        startDate: medication.start_date,
+        shouldHaveToday,
+        todayDate: todayString
+      });
+      
+      if (!shouldHaveToday) {
+        console.log(`📅 Skipping reminders for ${medication.name} - not scheduled for today (${medication.frequency})`);
+        return;
+      }
+
+      medication.reminder_times.forEach((timeString, index) => {
+        // Fix the reminder date generation - use TODAY's date, not start_date
+        const reminderDateTime = `${todayString}T${timeString}:00`;
+        const reminderDate = new Date(reminderDateTime);
+        
+        console.log(`⏰ Processing reminder ${index + 1} for ${medication.name}:`, {
+          originalTimeString: timeString,
+          reminderDateTime,
+          reminderDateISO: reminderDate.toISOString(),
+          startOfDay: startOfDay.toISOString(),
+          endOfDay: endOfDay.toISOString(),
+          isAfterStart: reminderDate >= startOfDay,
+          isBeforeEnd: reminderDate <= endOfDay,
+          isWithinToday: reminderDate >= startOfDay && reminderDate <= endOfDay
+        });
+        
+        // Ensure the reminder falls within today's boundaries
+        if (reminderDate >= startOfDay && reminderDate <= endOfDay) {
+          const reminderId = `${medication.id}-${timeString}`;
+          
+          // Find corresponding log for this reminder
+          const log = logs.find(log => {
+            const logMatches = log.medication_id === medication.id && 
+              log.scheduled_time.startsWith(todayString) &&
+              log.scheduled_time.includes(timeString);
+            
+            console.log(`🔍 Log matching for ${medication.name} at ${timeString}:`, {
+              logId: log?.id,
+              logMedicationId: log?.medication_id,
+              logScheduledTime: log?.scheduled_time,
+              medicationId: medication.id,
+              todayString,
+              timeString,
+              startsWithToday: log?.scheduled_time.startsWith(todayString),
+              includesTime: log?.scheduled_time.includes(timeString),
+              matches: logMatches
+            });
+            
+            return logMatches;
+          });
+
+          // Determine current status
+          let status = log?.status || 'pending';
+          let logId = log?.id;
+
+          console.log(`📊 Status determination for ${medication.name} at ${timeString}:`, {
+            logExists: !!log,
+            logStatus: log?.status,
+            logId: log?.id,
+            finalStatus: status
+          });
+
+          // If no log exists or log is pending, check if we need to auto-update
+          if (!log || log.status === 'pending') {
+            const newStatus = determineStatus(reminderDate.toISOString());
+            
+            console.log(`🔄 Auto-status check for ${medication.name}:`, {
+              originalStatus: log?.status || 'no log',
+              newStatus,
+              reminderTime: reminderDate.toISOString(),
+              currentTime: now.toISOString()
+            });
+            
+            // If status changed from pending to missed, we should update the database
+            if (log && log.status === 'pending' && newStatus === 'missed') {
+              // Auto-update the log in the database
+              updateLogStatus(log.id, 'missed');
+              status = 'missed';
+            } else if (!log && newStatus === 'missed') {
+              // If no log exists and it should be missed, we'll handle this in the UI
+              status = newStatus;
+            } else {
+              status = newStatus;
+            }
+          }
+
+          const reminder: ReminderItem = {
+            id: reminderId,
+            medicationId: medication.id,
+            medicationName: medication.name,
+            dosage: medication.dosage,
+            time: reminderDate.toISOString(), // Ensure ISO format
+            scheduledTime: reminderDate.toISOString(),
+            instructions: medication.instructions || '',
+            color: medication.color || getRandomColor(),
+            status,
+            logId,
+          };
+
+          console.log(`✅ Created reminder for ${medication.name}:`, {
+            id: reminder.id,
+            time: reminder.time,
+            status: reminder.status,
+            logId: reminder.logId
+          });
+
+          reminders.push(reminder);
+        } else {
+          console.log(`❌ Reminder time outside today's boundaries for ${medication.name}:`, {
+            reminderTime: reminderDate.toISOString(),
+            startOfDay: startOfDay.toISOString(),
+            endOfDay: endOfDay.toISOString()
+          });
+        }
+      });
+    });
+
+    const sortedReminders = reminders.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    
+    console.log('🎯 FINAL REMINDERS GENERATED:', {
+      totalReminders: sortedReminders.length,
+      reminders: sortedReminders.map(r => ({
+        name: r.medicationName,
+        time: r.time,
+        status: r.status,
+        logId: r.logId
+      }))
+    });
+
+    return sortedReminders;
+  }, [updateLogStatus]);
 
   // Calculate adherence rate and stats from logs
   const calculateStats = useCallback((logs: MedicationLog[]) => {

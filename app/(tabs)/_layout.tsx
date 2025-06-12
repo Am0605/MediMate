@@ -28,8 +28,7 @@ function TabBarIcon(props: {
         name={iconName as any}
         size={props.focused ? 26 : 24}
         style={{ 
-          marginBottom: Platform.OS === 'android' ? 0 : -3,
-          transform: [{ scale: props.focused ? 1.1 : 1 }],
+          marginBottom: 0,
         }}
         color={props.color}
       />
@@ -40,7 +39,7 @@ function TabBarIcon(props: {
   );
 }
 
-// Custom tab bar button with haptic feedback
+// Custom tab bar button with haptic feedback but no opacity changes
 function TabBarButton(props: any) {
   const { onPress, ...otherProps } = props;
   
@@ -57,16 +56,10 @@ function TabBarButton(props: any) {
     <Pressable 
       {...otherProps} 
       onPress={handlePress}
-      style={({ pressed }) => [
-        otherProps.style,
-        {
-          transform: [{ scale: pressed ? 0.95 : 1 }],
-          opacity: pressed ? 0.7 : 1,
-        }
-      ]}
+      style={otherProps.style} // Remove transform and opacity changes
       android_ripple={{ 
         color: 'rgba(0,0,0,0.1)', 
-        borderless: false,
+        borderless: true, // Changed to true for better Android experience
         radius: 40
       }}
     />
@@ -273,13 +266,7 @@ function ProfileIcon() {
 
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.profileIconContainer,
-        {
-          transform: [{ scale: pressed ? 0.9 : 1 }],
-          opacity: pressed ? 0.7 : 1,
-        }
-      ]}
+      style={styles.profileIconContainer} // Remove transform and opacity
       onPress={handleProfilePress}
       android_ripple={{ 
         color: 'rgba(0,0,0,0.1)', 
@@ -337,9 +324,9 @@ export default function TabLayout() {
                 shadowRadius: 8,
               },
               android: {
-                height: 75,
-                paddingBottom: 15,
-                paddingTop: 8,
+                height: 80, // Increased height for better icon spacing
+                paddingBottom: 12, // Reduced padding
+                paddingTop: 12, // Increased top padding
                 elevation: 8,
               },
             }),
@@ -358,7 +345,8 @@ export default function TabLayout() {
             }),
           },
           tabBarIconStyle: Platform.OS === 'android' ? {
-            marginTop: 2,
+            marginTop: 0, // Remove margin to prevent clipping
+            marginBottom: 0,
           } : {
             marginBottom: -2,
           },
@@ -482,25 +470,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    paddingVertical: 4,
+    paddingVertical: Platform.OS === 'android' ? 8 : 4, // More padding on Android
+    paddingHorizontal: 4, // Add horizontal padding
+    minHeight: 40, // Ensure minimum touch target
   },
   tabIconFocused: {
-    transform: [{ translateY: -2 }],
+    transform: [{ translateY: Platform.OS === 'android' ? 0 : -2 }], // No transform on Android
   },
   focusIndicator: {
     position: 'absolute',
-    bottom: -8,
+    bottom: Platform.OS === 'android' ? 2 : -8, // Position better on Android
     width: 4,
     height: 4,
     borderRadius: 2,
-    ...Platform.select({
-      ios: {
-        bottom: -12,
-      },
-      android: {
-        bottom: -12,
-      },
-    }),
   },
   fabTabContainer: {
     flex: 1,
@@ -511,13 +493,14 @@ const styles = StyleSheet.create({
         marginTop: -50, 
       },
       android: {
-        marginTop: -30, 
+        marginTop: -25, // Reduced margin for Android
       },
     }),
   },
   profileIconContainer: {
     marginRight: 15,
     padding: 5,
+    // Remove all transform and opacity styles
   },
   profileIconBackground: {
     borderRadius: 20,
