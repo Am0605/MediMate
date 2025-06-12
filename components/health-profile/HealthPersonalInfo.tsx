@@ -286,7 +286,7 @@ export default function HealthPersonalInfo({ healthProfile, onEdit }: HealthPers
       color: Colors[colorScheme].tint,
     },
     {
-      icon: 'transgender-outline',
+      icon: 'male-female-outline',
       label: 'Gender',
       value: formatCardValue(healthProfile.gender),
       color: '#9C27B0',
