@@ -164,7 +164,7 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
   const renderProfileImage = () => {
     if (loading) {
       return (
-        <View style={[styles.defaultAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
+        <View style={[styles.defaultAvatar, { backgroundColor: Colors[colorScheme ?? 'light'].tint }]}>
           <Ionicons
             name="person"
             size={20}
@@ -189,7 +189,7 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
 
     // Fallback to initials
     return (
-      <View style={[styles.defaultAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
+      <View style={[styles.defaultAvatar, { backgroundColor: Colors[colorScheme ?? 'light'].tint }]}>
         <Text style={styles.initialsText}>
           {getUserInitials()}
         </Text>
@@ -198,12 +198,12 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
   };
   
   return (
-    <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
+    <View style={[styles.header, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
       <View style={styles.welcomeContainer}>
-        <Text style={[styles.welcomeText, { color: Colors[colorScheme].text, opacity: 0.7 }]}>
+        <Text style={[styles.welcomeText, { color: Colors[colorScheme ?? 'light'].text, opacity: 0.7 }]}>
           {getGreeting()},
         </Text>
-        <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
+        <Text style={[styles.userName, { color: Colors[colorScheme ?? 'light'].text }]}>
           {formatUserName(userInfo.firstName, userInfo.lastName)}
         </Text>
       </View>
@@ -223,13 +223,12 @@ export default function HomeHeader({ userInfo }: HomeHeaderProps) {
           radius: 25
         }}
       >
-        <View style={[styles.profileCard, { backgroundColor: Colors[colorScheme].background }]}>
+        <View style={[styles.profileCard, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
           <View style={styles.profileImageContainer}>
             {renderProfileImage()}
-            {/* Optional online indicator */}
-            <View style={[styles.onlineIndicator, { backgroundColor: '#4CAF50' }]} />
           </View>
         </View>
+        <View style={[styles.onlineIndicator, { borderColor: Colors[colorScheme ?? 'light'].background }]} />
       </Pressable>
     </View>
   );
@@ -258,6 +257,7 @@ const styles = StyleSheet.create({
   profileIconContainer: {
     marginLeft: 15,
     padding: 5,
+    position: 'relative',
   },
   profileCard: {
     borderRadius: 25,
@@ -319,12 +319,27 @@ const styles = StyleSheet.create({
   },
   onlineIndicator: {
     position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    bottom: 6,
+    right: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     borderWidth: 2,
-    borderColor: '#fff',
+    backgroundColor: '#4CAF50',
+    zIndex: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: {
+          width: 0,
+          height: 1,
+        },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
 });
