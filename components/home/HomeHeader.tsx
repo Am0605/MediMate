@@ -262,24 +262,47 @@ const styles = StyleSheet.create({
   profileCard: {
     borderRadius: 25,
     padding: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: {
+          width: 0,
+          height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+        backgroundColor: 'transparent',
+      },
+    }),
   },
   profileImageContainer: {
     position: 'relative',
     width: 44,
     height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: {
+          width: 0,
+          height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   avatarImage: {
     width: 44,
     height: 44,
-    borderRadius: 21,
+    borderRadius: 22,
     backgroundColor: '#f0f0f0',
   },
   defaultAvatar: {
